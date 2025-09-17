@@ -1,0 +1,17 @@
+{
+  "network": {
+    "name": "Sepolia Testnet",
+    "chain_id": 11155111,
+    "rpc_url": "https://go.getblock.io/ac60bc0d88874e65b6ff984e146da09b",
+    "currency_symbol": "ETH",
+    "block_explorer": "https://sepolia.etherscan.io"
+  },
+  "wallet": {
+    "storage_path": "./wallets/",
+    "default_wallet": "default"
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "%(asctime)s - %(levelname)s - %(message)s"
+  }
+}
