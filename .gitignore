@@ -1,3 +1,4 @@
 .idea/
 wallets/
 *.enc
+.DS_Store
