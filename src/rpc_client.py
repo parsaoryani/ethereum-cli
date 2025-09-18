@@ -346,3 +346,251 @@ class RPCClient:
         """Clean up resources."""
         logger.info("🔌 RPC Client closed")
 
+
+#  Simple Tests
+if __name__ == '__main__':
+    print("🚀 Starting Simple RPC Client Tests")
+    print("=" * 50)
+
+    # Create client
+    client = RPCClient(timeout=5, max_retries=2)
+
+    # Test 1: Network Connection
+    print("\n1️⃣ Testing Network Connection...")
+    try:
+        info = client.get_network_info()
+        print(f"   ✅ Connected to {info['network']}")
+        print(f"   ✅ Latest Block: {info['latest_block']:,}")
+        print(f"   ✅ Gas Price: {info['gas_price_gwei']} Gwei")
+    except Exception as e:
+        print(f"   ❌ Connection failed: {e}")
+
+    # Test 2: Balance Check
+    print("\n2️⃣ Testing Balance Operations...")
+    zero_address = '0x0000000000000000000000000000000000000000'
+    try:
+        eth_balance = client.get_balance(zero_address, 'ether')
+        wei_balance = client.get_balance(zero_address, 'wei')
+        print(f"   ✅ Zero Address:")
+        print(f"      ETH: {eth_balance:,.4f}")
+        print(f"      Wei: {wei_balance:,}")
+    except Exception as e:
+        print(f"   ❌ Balance test failed: {e}")
+
+    # Test 3: Transaction Preparation
+    print("\n3️⃣ Testing Transaction Preparation...")
+    try:
+        nonce = client.get_nonce(zero_address)
+        gas_price = client.get_gas_price('gwei')
+        print(f"   ✅ Nonce: {nonce}")
+        print(f"   ✅ Gas Price: {gas_price:.2f} Gwei")
+
+        # Simple gas estimation
+        sample_tx = {
+            'to': '0x742d35Cc6634C0532925a3b8D7C4aE7B6733E6B5',
+            'value': '0x16345785d8a0000'  # 0.1 ETH
+        }
+        gas_estimate = client.estimate_gas(sample_tx)
+        print(f"   ✅ Gas Estimate: {gas_estimate:,}")
+    except Exception as e:
+        print(f"   ❌ Transaction prep failed: {e}")
+
+    # Test 4: Transaction Status
+    print("\n4️⃣ Testing Transaction Status...")
+    test_hash = '0x0000000000000000000000000000000000000000000000000000000000000000'
+    try:
+        status = client.get_transaction_status(test_hash)
+        print(f"   ✅ Status: {status['status']} - {status['message']}")
+    except Exception as e:
+        print(f"   ❌ Status test failed: {e}")
+
+    # Test 5: Block Information
+    print("\n5️⃣ Testing Block Information...")
+    try:
+        block_num = client.get_block_number()
+        block_info = client.get_block_info(block_num - 1)
+        print(f"   ✅ Latest Block: {block_num}")
+        print(f"   ✅ Previous Block: {block_info['number']}")
+        print(f"   ✅ Transactions: {block_info['transaction_count']}")
+        print(f"   ✅ Gas Used: {block_info['gas_used']:,}")
+    except Exception as e:
+        print(f"   ❌ Block test failed: {e}")
+
+    # Test 6: Input Validation
+    print("\n6️⃣ Testing Input Validation...")
+    test_cases = [
+        ('invalid_addr', "Invalid address"),
+        ('0xshort', "Invalid address"),
+        ('0x' + 'a' * 40, "Valid format but random")  # This should work
+    ]
+
+    for addr, expected in test_cases:
+        try:
+            balance = client.get_balance(addr, 'ether')
+            if expected == "Valid format but random":
+                print(f"   ✅ {addr[:10]}...: {balance:.6f} ETH")
+            else:
+                print(f"   ❌ Validation failed for {addr}: should have raised error")
+        except ValueError as e:
+            if expected != "Valid format but random":
+                print(f"   ✅ Validation caught: {addr} -> {e}")
+            else:
+                print(f"   ❌ Unexpected error for valid format: {e}")
+
+    # Test 7: Stats
+    print("\n7️⃣ Testing Statistics...")
+    stats = client.get_stats()
+    print(f"   ✅ Total Calls: {stats['total_calls']}")
+    print(f"   ✅ Success Rate: {stats['success_rate']}%")
+
+    # Cleanup
+    client.close()
+    print("\n🎉 All Tests Completed!")
+    print("=" * 50)
+
+
+# 🧪 Comprehensive Function Tests
+# Testing all functions in RPCClient
+# Each section is separated for clarity
+
+print("\n=================== Comprehensive Function Tests ===================")
+
+# Test Section 1: get_chain_id
+print("\nSection 1: Testing get_chain_id")
+try:
+    chain_id = client.get_chain_id()
+    print(f"   ✅ Chain ID: {chain_id}")
+    print(f"   ✅ Expected: {client.expected_chain_id}")
+except Exception as e:
+    print(f"   ❌ get_chain_id failed: {e}")
+
+# Test Section 2: get_network_info
+print("\nSection 2: Testing get_network_info")
+try:
+    info = client.get_network_info()
+    if 'error' in info:
+        print(f"   ❌ Error: {info['error']}")
+    else:
+        print(f"   ✅ Chain ID: {info['chain_id']}")
+        print(f"   ✅ Network: {info['network']}")
+        print(f"   ✅ Latest Block: {info['latest_block']:,}")
+        print(f"   ✅ Gas Price Gwei: {info['gas_price_gwei']}")
+except Exception as e:
+    print(f"   ❌ get_network_info failed: {e}")
+
+# Test Section 3: _validate_address (private, but testing directly)
+print("\nSection 3: Testing _validate_address")
+test_addresses = [
+    ('0x0000000000000000000000000000000000000000', True),  # Valid zero address
+    ('0x742d35Cc6634C0532925a3b8D7C4aE7B6733E6B5', True),  # Valid random address
+    ('invalid_addr', False),  # Invalid no 0x
+    ('0xshort', False),  # Too short
+    ('0x' + 'a' * 40, True),  # Valid hex format
+    ('0x742d35xyz', False)  # Invalid chars
+]
+for addr, expected in test_addresses:
+    result = client._validate_address(addr)
+    status = "✅" if result == expected else "❌"
+    print(f"   {status} Address '{addr[:10]}...': Expected {expected}, Got {result}")
+
+# Test Section 4: get_balance
+print("\nSection 4: Testing get_balance")
+test_address = '0x0000000000000000000000000000000000000000'  # Zero address
+units = ['ether', 'wei', 'gwei']
+for unit in units:
+    try:
+        balance = client.get_balance(test_address, unit)
+        print(f"   ✅ Balance in {unit}: {balance}")
+    except Exception as e:
+        print(f"   ❌ get_balance ({unit}) failed: {e}")
+
+# Test Section 5: get_nonce
+print("\nSection 5: Testing get_nonce")
+try:
+    nonce = client.get_nonce(test_address)
+    print(f"   ✅ Nonce for {test_address[:10]}...: {nonce}")
+except Exception as e:
+    print(f"   ❌ get_nonce failed: {e}")
+
+# Test Section 6: get_gas_price
+print("\nSection 6: Testing get_gas_price")
+units = ['gwei', 'wei', 'ether']
+for unit in units:
+    try:
+        gas_price = client.get_gas_price(unit)
+        print(f"   ✅ Gas Price in {unit}: {gas_price}")
+    except Exception as e:
+        print(f"   ❌ get_gas_price ({unit}) failed: {e}")
+
+# Test Section 7: estimate_gas
+print("\nSection 7: Testing estimate_gas")
+sample_tx = {
+    'to': '0x742d35Cc6634C0532925a3b8D7C4aE7B6733E6B5',
+    'value': '0x16345785d8a0000'  # 0.1 ETH
+}
+try:
+    gas = client.estimate_gas(sample_tx)
+    print(f"   ✅ Estimated Gas for sample tx: {gas:,}")
+except Exception as e:
+    print(f"   ❌ estimate_gas failed: {e}")
+
+# Test Section 8: send_raw_transaction
+print("\nSection 8: Testing send_raw_transaction")
+# Note: We can't send real tx without signed data, so test validation only
+try:
+    # Invalid input test
+    client.send_raw_transaction('invalid_tx_hex')
+    print("   ❌ Should have raised error but didn't")
+except ValueError as e:
+    print(f"   ✅ Validation caught invalid tx: {e}")
+
+# Test Section 9: get_transaction_status
+print("\nSection 9: Testing get_transaction_status")
+test_hash = '0x0000000000000000000000000000000000000000000000000000000000000000'  # Invalid hash
+try:
+    status = client.get_transaction_status(test_hash)
+    print(f"   ✅ Status: {status['status']} - {status['message']}")
+except Exception as e:
+    print(f"   ❌ get_transaction_status failed: {e}")
+
+# Test Section 10: get_block_number
+print("\nSection 10: Testing get_block_number")
+try:
+    block_num = client.get_block_number()
+    print(f"   ✅ Latest Block Number: {block_num:,}")
+except Exception as e:
+    print(f"   ❌ get_block_number failed: {e}")
+
+# Test Section 11: get_block_info
+print("\nSection 11: Testing get_block_info")
+try:
+    block_num = client.get_block_number()
+    block_info = client.get_block_info(block_num - 1)  # Previous block
+    print(f"   ✅ Block Number: {block_info['number']:,}")
+    print(f"   ✅ Timestamp: {block_info['timestamp']} (Unix)")
+    print(f"   ✅ Miner: {block_info['miner']}")
+    print(f"   ✅ Gas Used: {block_info['gas_used']:,}")
+    print(f"   ✅ Transaction Count: {block_info['transaction_count']}")
+except Exception as e:
+    print(f"   ❌ get_block_info failed: {e}")
+
+# Test Section 12: get_stats
+print("\nSection 12: Testing get_stats")
+try:
+    stats = client.get_stats()
+    print(f"   ✅ Total Calls: {stats['total_calls']}")
+    print(f"   ✅ Successful Calls: {stats['successful_calls']}")
+    print(f"   ✅ Success Rate: {stats['success_rate']}%")
+    print(f"   ✅ Network: {stats['network']}")
+except Exception as e:
+    print(f"   ❌ get_stats failed: {e}")
+
+# Test Section 13: close
+print("\nSection 13: Testing close")
+try:
+    client.close()
+    print("   ✅ Close succeeded (check log for 🔌 RPC Client closed)")
+except Exception as e:
+    print(f"   ❌ close failed: {e}")
+
+print("\n=================== End of Comprehensive Function Tests ===================")
