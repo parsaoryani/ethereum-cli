@@ -1,11 +1,12 @@
 import json
 import os
 import secrets
-import hashlib
 import time
 import base64
 from pathlib import Path
 from typing import Dict, Tuple, Optional, List, Any
+
+from _pysha3 import keccak_256
 from ecdsa import SigningKey, SECP256k1
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -75,10 +76,9 @@ class WalletManager:
         # Get uncompressed public key (04 + x + y coordinates)
         public_key_bytes = b'\x04' + verifying_key.to_string()
 
-        # Generate Ethereum address using Keccak-256 hash
-        keccak = hashlib.new('sha3_256')
-        keccak.update(public_key_bytes[1:])
-        address_bytes = keccak.digest()[-20:]  # Last 20 bytes
+        # Generate Ethereum address using Keccak-256 hash (CORRECT)
+        hash_result = keccak_256(public_key_bytes[1:]).digest()
+        address_bytes = hash_result[-20:]  # Last 20 bytes
         address = '0x' + address_bytes.hex()
 
         # Encrypt private key with password
@@ -174,38 +174,41 @@ class WalletManager:
             FileNotFoundError: Wallet file not found
             ValueError: Invalid password or corrupted data
         """
-        # Load wallet data
+        # Load wallet metadata from secure JSON file
         wallet_data = self._load_wallet(address)
 
-        # Get balance from RPC client
+        # Get current balance from Ethereum network using RPC client
         from rpc_client import RPCClient
         client = RPCClient()
         try:
-            balance_eth = client.get_balance(address, 'ether')
-            balance_wei = client.get_balance(address, 'wei')
+            # Get balance in different units
+            balance_eth = client.get_balance(address, 'ether')  # Human readable
+            balance_wei = client.get_balance(address, 'wei')  # Smallest unit
         finally:
-            client.close()
+            client.close()  # Always close RPC connection
 
-        # Prepare wallet info
+        # Prepare base wallet information structure
         wallet_info = {
             'address': address,
             'balance': {
-                'ether': round(balance_eth, 6),
-                'wei': balance_wei,
-                'gwei': round(balance_wei / 1_000_000_000, 2)
+                'ether': round(balance_eth, 6),  # 6 decimal places for display
+                'wei': balance_wei,  # Raw wei value
+                'gwei': round(balance_wei / 1_000_000_000, 2)  # Gwei for gas calculations
             },
-            'created_at': wallet_data.get('created_at', 'Unknown'),
-            'imported': wallet_data.get('imported', False),
-            'private_key_available': password is not None
+            'created_at': wallet_data.get('created_at', 'Unknown'),  # Creation timestamp
+            'imported': wallet_data.get('imported', False),  # Generated vs imported
+            'private_key_available': password is not None  # Whether private key can be decrypted
         }
 
-        # Decrypt private key if password provided
+        # Attempt to decrypt private key if password provided
         if password:
             try:
+                # Decrypt private key using provided password
                 private_key = self._decrypt_private_key(wallet_data, password)
-                wallet_info['private_key'] = private_key.hex()
+                wallet_info['private_key'] = private_key.hex()  # Return as hex string
                 wallet_info['private_key_available'] = True
             except ValueError:
+                # Invalid password or corrupted data
                 wallet_info['private_key_available'] = False
                 wallet_info['decryption_error'] = "Invalid password"
 
@@ -278,9 +281,11 @@ class WalletManager:
 
         return None
 
+    #from pysha3 import keccak_256
+
     def _private_key_to_address(self, private_key_bytes: bytes) -> str:
         """
-        Derive Ethereum address from private key bytes.
+        Derive Ethereum address from private key bytes using correct Keccak-256.
 
         Args:
             private_key_bytes: 32-byte private key
@@ -295,10 +300,9 @@ class WalletManager:
         # Get uncompressed public key
         public_key_bytes = b'\x04' + verifying_key.to_string()
 
-        # Keccak-256 hash of public key (excluding 04 prefix)
-        keccak = hashlib.new('sha3_256')
-        keccak.update(public_key_bytes[1:])
-        address_bytes = keccak.digest()[-20:]  # Last 20 bytes
+        # Keccak-256 hash (CORRECT implementation)
+        hash_result = keccak_256(public_key_bytes[1:]).digest()  # 32 bytes
+        address_bytes = hash_result[-20:]  # Last 20 bytes (160 bits)
 
         return '0x' + address_bytes.hex()
 
@@ -444,3 +448,349 @@ class WalletManager:
         except Exception as e:
             raise ValueError("Invalid password or corrupted wallet data")
 
+
+
+
+# CLI Interface for wallet commands
+def wallet_generate(password: str) -> None:
+    """
+    CLI command: Generate new wallet.
+
+    Args:
+        password: Password for encryption
+    """
+    try:
+        manager = WalletManager()
+        result = manager.generate_wallet(password)
+        print(f"Wallet Address: {result['address']}")
+        print("IMPORTANT: Write down your password and keep it secure!")
+        print("You will need it to access your funds.")
+    except ValueError as e:
+        print(f"Error: {e}")
+        exit(1)
+
+
+def wallet_import(private_key: str, password: str) -> None:
+    """
+    CLI command: Import existing wallet.
+
+    Args:
+        private_key: Private key to import
+        password: Password for encryption
+    """
+    try:
+        manager = WalletManager()
+        result = manager.import_wallet(private_key, password)
+        print(f"Imported Wallet: {result['address']}")
+        print("IMPORTANT: Write down your password and keep it secure!")
+    except ValueError as e:
+        print(f"Error: {e}")
+        exit(1)
+
+
+def wallet_show(address: Optional[str] = None, password: Optional[str] = None) -> None:
+    """
+    CLI command: Show wallet information.
+
+    Args:
+        address: Specific wallet address (optional)
+        password: Password for private key access (optional)
+    """
+    try:
+        manager = WalletManager()
+
+        # Use default wallet if no address specified
+        if not address:
+            address = manager.get_default_wallet()
+            if not address:
+                print("No default wallet set. Use 'wallet list' to see available wallets.")
+                exit(1)
+
+        # Get wallet info
+        wallet_info = manager.get_wallet_info(address, password)
+
+        print(f"Wallet Address: {wallet_info['address']}")
+        print(f"Balance: {wallet_info['balance']['ether']:.6f} ETH")
+        print(f"Created: {wallet_info['created_at']}")
+        print(f"Imported: {wallet_info['imported']}")
+
+        if wallet_info.get('private_key_available', False):
+            print(f"Private Key: {wallet_info['private_key'][:10]}...")
+        else:
+            print("Private Key: [Enter password to view]")
+
+    except Exception as e:
+        print(f"Error: {e}")
+        exit(1)
+
+
+def wallet_list() -> None:
+    """
+    CLI command: List all available wallets.
+    """
+    try:
+        manager = WalletManager()
+        wallets = manager.list_wallets()
+
+        if not wallets:
+            print("No wallets found.")
+            return
+
+        print(f"Found {len(wallets)} wallet(s):")
+        print("-" * 50)
+        for wallet in wallets:
+            print(f"Address: {wallet['address']}")
+            print(f"Created: {wallet['created_at']}")
+            print(f"Imported: {wallet['imported']}")
+            print()
+
+    except Exception as e:
+        print(f"Error: {e}")
+        exit(1)
+
+
+def wallet_use(address: str) -> None:
+    """
+    CLI command: Set default wallet.
+
+    Args:
+        address: Wallet address to set as default
+    """
+    try:
+        manager = WalletManager()
+        success = manager.set_default_wallet(address)
+
+        if success:
+            print(f"Default wallet set to: {address}")
+        else:
+            print(f"Wallet not found: {address}")
+            exit(1)
+
+    except Exception as e:
+        print(f"Error: {e}")
+        exit(1)
+
+
+if __name__ == '__main__':
+    """Run comprehensive tests for all WalletManager methods."""
+    print("Wallet Module - Comprehensive Tests")
+    print("=" * 50)
+
+    # Test generate_wallet
+    print("\nTesting generate_wallet")
+    try:
+        manager = WalletManager()
+        test_password = "testpassword123"
+        result = manager.generate_wallet(test_password)
+        print(f"Success: Generated wallet address: {result['address']}")
+        wallet_file = WALLET_DIR / f"{result['address']}.json"
+        print(f"Wallet file created: {wallet_file.exists()}")
+        stat = os.stat(wallet_file)
+        print(f"File permissions secure: {(stat.st_mode & 0o600) == 0o600}")
+        test_address = result['address']
+    except Exception as e:
+        print(f"Failed: {e}")
+
+    # Test import_wallet
+    print("\nTesting import_wallet")
+    try:
+        manager = WalletManager()
+        test_private_key = "cc347ec1f2d4a9e13bcce7016dee94b4a0463a37871e4489c8ea60ab67a0b96d"
+        test_password = "Parsa1382@"
+        result = manager.import_wallet(test_private_key, test_password)
+        print(f"Success: Imported wallet address: {result['address']}")
+        wallet_file = WALLET_DIR / f"{result['address']}.json"
+        print(f"Wallet file created: {wallet_file.exists()}")
+    except Exception as e:
+        print(f"Failed: {e}")
+
+    # Test get_wallet_info
+    print("\nTesting get_wallet_info")
+    try:
+        manager = WalletManager()
+        default_address = manager.get_default_wallet()
+        if default_address:
+            info = manager.get_wallet_info(default_address, test_password)
+            print(f"Success: Address: {info['address']}")
+            print(f"Balance: {info['balance']['ether']:.6f} ETH")
+            print(f"Created: {info['created_at']}")
+            print(f"Private key available: {info['private_key_available']}")
+            if info.get('decryption_error'):
+                print(f"Decryption error: {info['decryption_error']}")
+        else:
+            print("No default wallet found, skipping test")
+    except Exception as e:
+        print(f"Failed: {e}")
+
+    # Test list_wallets
+    print("\nTesting list_wallets")
+    try:
+        manager = WalletManager()
+        wallets = manager.list_wallets()
+        print(f"Success: Found {len(wallets)} wallet(s)")
+        for i, wallet in enumerate(wallets, 1):
+            print(f"  {i}. {wallet['address']}")
+            print(f"     Created: {wallet['created_at']}")
+            print(f"     Imported: {wallet['imported']}")
+    except Exception as e:
+        print(f"Failed: {e}")
+
+    # Test set_default_wallet
+    print("\nTesting set_default_wallet")
+    try:
+        manager = WalletManager()
+        if test_address and manager.set_default_wallet(test_address):
+            print(f"Success: Set default wallet to {test_address}")
+            default = manager.get_default_wallet()
+            print(f"Default wallet: {default}")
+        else:
+            print("No test address available or set_default_wallet failed")
+    except Exception as e:
+        print(f"Failed: {e}")
+
+    # Test get_default_wallet
+    print("\nTesting get_default_wallet")
+    try:
+        manager = WalletManager()
+        default = manager.get_default_wallet()
+        print(f"Success: Default wallet: {default or 'None'}")
+    except Exception as e:
+        print(f"Failed: {e}")
+
+    # Test _is_valid_address
+    print("\nTesting _is_valid_address")
+    try:
+        manager = WalletManager()
+        test_addresses = [
+            ('0x0000000000000000000000000000000000000000', True),
+            ('0x742d35Cc6634C0532925a3b8D7C4aE7B6733E6B5', True),
+            ('invalid_address', False),
+            ('0xshort', False),
+            ('0x' + 'g' * 40, False),
+            ('0x' + 'a' * 39, False)
+        ]
+        for addr, expected in test_addresses:
+            result = manager._is_valid_address(addr)
+            print(f"  {addr[:10]}...: {'Valid' if result else 'Invalid'} (Expected: {expected})")
+    except Exception as e:
+        print(f"Failed: {e}")
+
+    # Test _private_key_to_address
+    print("\nTesting _private_key_to_address")
+    try:
+        manager = WalletManager()
+        test_private_key = bytes.fromhex("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
+        address = manager._private_key_to_address(test_private_key)
+        print(f"Success: Derived address: {address}")
+        print(f"Address valid: {manager._is_valid_address(address)}")
+    except Exception as e:
+        print(f"Failed: {e}")
+
+    # Test _encrypt_private_key and _decrypt_private_key
+    print("\nTesting _encrypt_private_key and _decrypt_private_key")
+    try:
+        manager = WalletManager()
+        test_private_key = secrets.token_bytes(32)
+        test_password = "testpassword123"
+        encrypted = manager._encrypt_private_key(test_private_key, test_password)
+        print(f"Encryption: Salt length: {len(encrypted['salt'])} bytes")
+        print(f"Encryption: Key length: {len(encrypted['encrypted_key'])} bytes")
+        wallet_data = {
+            'salt': encrypted['salt'].hex(),
+            'encrypted_private_key': encrypted['encrypted_key'].hex()
+        }
+        decrypted = manager._decrypt_private_key(wallet_data, test_password)
+        print(f"Decryption: Key length: {len(decrypted)} bytes")
+        print(f"Round trip: {decrypted == test_private_key}")
+    except Exception as e:
+        print(f"Failed: {e}")
+
+    # Test _wallet_file_exists
+    print("\nTesting _wallet_file_exists")
+    try:
+        manager = WalletManager()
+        if test_address:
+            exists = manager._wallet_file_exists(test_address)
+            print(f"Success: Wallet file exists: {exists}")
+        else:
+            print("No test address available")
+    except Exception as e:
+        print(f"Failed: {e}")
+
+    # Test _save_wallet
+    print("\nTesting _save_wallet")
+    try:
+        manager = WalletManager()
+        test_data = {
+            'address': '0x' + '1' * 40,
+            'salt': secrets.token_bytes(16).hex(),
+            'encrypted_private_key': secrets.token_bytes(32).hex(),
+            'created_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+        }
+        manager._save_wallet(test_data['address'], test_data)
+        wallet_file = WALLET_DIR / f"{test_data['address']}.json"
+        print(f"Success: File created: {wallet_file.exists()}")
+        stat = os.stat(wallet_file)
+        print(f"Permissions secure: {(stat.st_mode & 0o600) == 0o600}")
+    except Exception as e:
+        print(f"Failed: {e}")
+
+    # Test _load_wallet
+    print("\nTesting _load_wallet")
+    try:
+        manager = WalletManager()
+        if test_address:
+            wallet_data = manager._load_wallet(test_address)
+            print(f"Success: Loaded wallet: {wallet_data['address']}")
+            print(f"Created at: {wallet_data['created_at']}")
+        else:
+            print("No test address available")
+    except Exception as e:
+        print(f"Failed: {e}")
+
+    # Test wallet_generate
+    print("\nTesting wallet_generate")
+    try:
+        wallet_generate("clitestpassword123")
+        print("Success: CLI wallet generation completed")
+    except Exception as e:
+        print(f"Failed: {e}")
+
+    # Test wallet_import
+    print("\nTesting wallet_import")
+    try:
+        test_private_key = secrets.token_bytes(32).hex()
+        wallet_import(test_private_key, "clitestpassword123")
+        print("Success: CLI wallet import completed")
+    except Exception as e:
+        print(f"Failed: {e}")
+
+    # Test wallet_show
+    print("\nTesting wallet_show")
+    try:
+        wallet_show()
+        print("Success: CLI wallet show completed")
+    except Exception as e:
+        print(f"Failed: {e}")
+
+    # Test wallet_list
+    print("\nTesting wallet_list")
+    try:
+        wallet_list()
+        print("Success: CLI wallet list completed")
+    except Exception as e:
+        print(f"Failed: {e}")
+
+    # Test wallet_use
+    print("\nTesting wallet_use")
+    try:
+        if test_address:
+            wallet_use(test_address)
+            print("Success: CLI wallet use completed")
+        else:
+            print("No test address available")
+    except Exception as e:
+        print(f"Failed: {e}")
+
+    print("\n" + "=" * 50)
+    print("All wallet tests completed!")

@@ -8,6 +8,6 @@
   },
   "wallet": {
     "storage_path": "./wallets/",
-    "default_wallet": "0x32e2c3b5a77717e6c1cc4a961749785822b4fb43"
+    "default_wallet": "0xd6dcfbeed8d995762969d6249bb9fac853d0b917"
   }
 }
