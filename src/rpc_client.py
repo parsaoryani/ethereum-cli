@@ -20,21 +20,20 @@ logger = logging.getLogger(__name__)
 # Simple network names
 NETWORK_NAMES = {
     11155111: 'Sepolia Testnet'
-
 }
 
 class RPCClient:
     """
-    Simple Ethereum RPC Client for learning.
+    Improved Ethereum RPC Client with enhanced rate limiting handling.
     Features:
-    - Basic RPC calls with error handling
+    - Basic RPC calls with exponential backoff for 429 errors
     - Balance with unit conversion
     - Gas estimation
     - Transaction monitoring
-    - Basic retry logic
+    - Simple rate limiting to prevent 429 errors
     """
 
-    def __init__(self, rpc_url: str = None, chain_id: int = None, timeout: int = 10, max_retries: int = 2):
+    def __init__(self, rpc_url: str = None, chain_id: int = None, timeout: int = 10, max_retries: int = 5):
         """
         Initialize RPC Client with basic settings.
 
@@ -51,8 +50,10 @@ class RPCClient:
         self.timeout = timeout
         self.max_retries = max_retries
         self.headers = {'Content-Type': 'application/json'}
-        self.session = requests.Session()  # Added for connection reuse
+        self.session = requests.Session()
         self.request_id = 0
+        self.last_request_time = 0
+        self.min_request_interval = 0.5  # Minimum 0.5 seconds between requests
 
         # Simple metrics tracking
         self.call_count = 0
@@ -68,7 +69,7 @@ class RPCClient:
 
     def _make_rpc_call(self, method: str, params: List[Any] = None) -> Any:
         """
-        Make a JSON-RPC call with basic retry logic.
+        Make a JSON-RPC call with exponential backoff for 429 errors and rate limiting.
         """
         if params is None:
             params = []
@@ -83,6 +84,14 @@ class RPCClient:
         }
 
         logger.info(f"🔄 Calling {method} with params: {params}")
+
+        # Enforce minimum interval between requests
+        current_time = time.time()
+        time_since_last = current_time - self.last_request_time
+        if time_since_last < self.min_request_interval:
+            sleep_time = self.min_request_interval - time_since_last
+            logger.debug(f"Rate limiting: waiting {sleep_time:.2f}s before request")
+            time.sleep(sleep_time)
 
         for attempt in range(self.max_retries):
             try:
@@ -103,21 +112,35 @@ class RPCClient:
                     raise ValueError(f"RPC error: {error_msg}")
 
                 self.success_count += 1
+                self.last_request_time = time.time()
                 logger.info(f"✅ {method} succeeded")
                 logger.info(f"Raw result for {method}: {result.get('result', 'None')}")
                 return result['result']
 
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 429:
+                    # Exponential backoff: 5 * 2^attempt seconds
+                    backoff_time = 5 * (2 ** attempt)
+                    logger.warning(f"⏰ 429 Too Many Requests on attempt {attempt + 1}/{self.max_retries}. Waiting {backoff_time}s")
+                    time.sleep(backoff_time)
+                    continue
+                logger.warning(f"🌐 HTTP error on attempt {attempt + 1}: {e}")
+                if attempt < self.max_retries - 1:
+                    time.sleep(5)
+                    continue
+                raise ConnectionError(f"HTTP error: {e}")
+
             except requests.exceptions.Timeout:
                 logger.warning(f"⏰ Timeout on attempt {attempt + 1}/{self.max_retries}")
                 if attempt < self.max_retries - 1:
-                    time.sleep(1)
+                    time.sleep(5)
                     continue
-                raise ConnectionError("Request timed out after all retries")
+                raise ConnectionError("Request timed out after retries")
 
             except requests.exceptions.RequestException as e:
                 logger.warning(f"🌐 Network error on attempt {attempt + 1}: {e}")
                 if attempt < self.max_retries - 1:
-                    time.sleep(1)
+                    time.sleep(5)
                     continue
                 raise ConnectionError(f"Network error: {e}")
 
@@ -143,14 +166,13 @@ class RPCClient:
             chain_id = self.get_chain_id()
             block_number = self.get_block_number()
             gas_price = self.get_gas_price(unit='gwei')
-            # Warn if gas price is unusually low
             if gas_price < 0.001:
                 logger.warning(f"Gas price very low ({gas_price:.6f} Gwei) - may cause slow confirmations")
             return {
                 'chain_id': chain_id,
                 'network': NETWORK_NAMES.get(chain_id, 'Unknown'),
                 'latest_block': block_number,
-                'gas_price_gwei': round(gas_price, 6)  # High precision for display
+                'gas_price_gwei': round(gas_price, 6)
             }
         except Exception as e:
             logger.error(f"Failed to get network info: {e}")
@@ -208,7 +230,6 @@ class RPCClient:
         logger.info(f"Raw eth_gasPrice hex: {gas_price_wei_hex}")
         gas_price_wei = int(gas_price_wei_hex, 16)
 
-        # Fallback only for zero gas price
         if gas_price_wei == 0:
             logger.warning(f"Zero gas price received, using default {default_gas_price_gwei} Gwei")
             gas_price_wei = default_gas_price_wei
@@ -256,14 +277,9 @@ class RPCClient:
         logger.info(f"📤 Transaction sent: {tx_hash}")
         return tx_hash
 
-
     def get_transaction_status(self, tx_hash: str) -> Dict[str, Any]:
         """
         Check transaction status (pending, confirmed, or not found).
-        Args:
-            tx_hash: Transaction hash
-        Returns:
-            Dictionary with status, message, gas_used, and block_number
         """
         if not tx_hash.startswith('0x') or len(tx_hash) != 66:
             raise ValueError("Invalid transaction hash")
@@ -300,7 +316,6 @@ class RPCClient:
                 'gas_used': 0,
                 'block_number': 'N/A'
             }
-
 
     def get_block_number(self) -> int:
         """Get the latest block number."""
@@ -345,7 +360,7 @@ if __name__ == '__main__':
     print("🚀 Starting Simple RPC Client Tests")
     print("=" * 50)
 
-    client = RPCClient(timeout=5, max_retries=2)
+    client = RPCClient(timeout=5, max_retries=5)
 
     print("\n1️⃣ Testing Network Connection...")
     try:
@@ -387,7 +402,6 @@ if __name__ == '__main__':
     test_hash = '0xb54d72c08764463ee2a101ef63640855abed01cc7cb040be1e04b2c9c3e2dfd3'
     try:
         status = client.get_transaction_status(test_hash)
-        #print(status.keys())
         print(f"   ✅ Status: {status['status']} - {status['message']}")
     except Exception as e:
         print(f"   ❌ Status test failed: {e}")
