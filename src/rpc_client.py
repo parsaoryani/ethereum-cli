@@ -4,14 +4,11 @@ import logging
 import time
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Any
+import warnings
+warnings.filterwarnings("ignore", category=Warning)
 
-# Load configuration from settings.json
+# Configuration path
 CONFIG_PATH = Path(__file__).parent.parent / 'config' / 'settings.json'
-with open(CONFIG_PATH, 'r') as f:
-    config = json.load(f)
-
-RPC_URL = config['network']['rpc_url']
-CHAIN_ID = config['network']['chain_id']
 
 # Setup simple logging
 logging.basicConfig(
@@ -25,7 +22,6 @@ NETWORK_NAMES = {
     11155111: 'Sepolia Testnet'
 }
 
-
 class RPCClient:
     """
     Simple Ethereum RPC Client for learning.
@@ -37,7 +33,7 @@ class RPCClient:
     - Basic retry logic
     """
 
-    def __init__(self, rpc_url=RPC_URL, chain_id=CHAIN_ID, timeout=10, max_retries=2):
+    def __init__(self, rpc_url: str = None, chain_id: int = None, timeout: int = 10, max_retries: int = 2):
         """
         Initialize RPC Client with basic settings.
 
@@ -47,11 +43,15 @@ class RPCClient:
             timeout: Request timeout in seconds
             max_retries: Number of retry attempts
         """
-        self.rpc_url = rpc_url
-        self.expected_chain_id = chain_id
+        with open(CONFIG_PATH, 'r') as f:
+            config = json.load(f)
+        self.rpc_url = rpc_url or config['network']['rpc_url']
+        self.expected_chain_id = chain_id or config['network']['chain_id']
         self.timeout = timeout
         self.max_retries = max_retries
         self.headers = {'Content-Type': 'application/json'}
+        self.session = requests.Session()  # Added for connection reuse
+        self.request_id = 0
 
         # Simple metrics tracking
         self.call_count = 0
@@ -60,7 +60,7 @@ class RPCClient:
         # Test connection
         try:
             self.get_chain_id()
-            logger.info(f"✅ Connected to {self.rpc_url} (Chain ID: {chain_id})")
+            logger.info(f"✅ Connected to {self.rpc_url} (Chain ID: {self.expected_chain_id})")
         except Exception as e:
             logger.error(f"❌ Connection failed: {e}")
             raise
@@ -68,59 +68,48 @@ class RPCClient:
     def _make_rpc_call(self, method: str, params: List[Any] = None) -> Any:
         """
         Make a JSON-RPC call with basic retry logic.
-
-        Args:
-            method: RPC method name (like 'eth_getBalance')
-            params: List of parameters for the method
-
-        Returns:
-            RPC result (string, int, dict, etc.)
-
-        Raises:
-            ValueError: RPC error
-            ConnectionError: Network issues
         """
         if params is None:
             params = []
 
         self.call_count += 1
+        self.request_id += 1
         payload = {
             "jsonrpc": "2.0",
             "method": method,
             "params": params,
-            "id": 1
+            "id": self.request_id
         }
 
         logger.info(f"🔄 Calling {method} with params: {params}")
 
-        # Simple retry logic
         for attempt in range(self.max_retries):
             try:
-                response = requests.post(
+                response = self.session.post(
                     self.rpc_url,
                     headers=self.headers,
                     data=json.dumps(payload),
                     timeout=self.timeout
                 )
-                response.raise_for_status()  # Raises HTTPError for bad status
-
+                response.raise_for_status()
                 result = response.json()
 
-                # Check for RPC errors
+                logger.debug(f"Raw response for {method}: {result}")
+
                 if 'error' in result:
                     error_msg = result['error'].get('message', 'Unknown error')
                     logger.error(f"❌ RPC Error {method}: {error_msg}")
                     raise ValueError(f"RPC error: {error_msg}")
 
-                # Success!
                 self.success_count += 1
                 logger.info(f"✅ {method} succeeded")
+                logger.info(f"Raw result for {method}: {result.get('result', 'None')}")
                 return result['result']
 
             except requests.exceptions.Timeout:
                 logger.warning(f"⏰ Timeout on attempt {attempt + 1}/{self.max_retries}")
                 if attempt < self.max_retries - 1:
-                    time.sleep(1)  # Wait 1 second before retry
+                    time.sleep(1)
                     continue
                 raise ConnectionError("Request timed out after all retries")
 
@@ -134,15 +123,12 @@ class RPCClient:
             except json.JSONDecodeError:
                 raise ValueError("Invalid JSON response from RPC")
 
-        # If we get here, all retries failed
         raise ConnectionError(f"Failed after {self.max_retries} attempts")
 
-    #  Network Information
     def get_chain_id(self) -> int:
         """Get and validate the chain ID."""
         chain_id_hex = self._make_rpc_call('eth_chainId')
-        chain_id = int(chain_id_hex, 16)  # Convert hex to int
-
+        chain_id = int(chain_id_hex, 16)
         if chain_id != self.expected_chain_id:
             raise ValueError(
                 f"Wrong network! Expected {self.expected_chain_id} ({NETWORK_NAMES.get(self.expected_chain_id)}), "
@@ -155,18 +141,27 @@ class RPCClient:
         try:
             chain_id = self.get_chain_id()
             block_number = self.get_block_number()
-            gas_price = self.get_gas_price()
-
+            gas_price = self.get_gas_price(unit='gwei')
+            # Warn if gas price is unusually low
+            if gas_price < 0.001:
+                logger.warning(f"Gas price very low ({gas_price:.6f} Gwei) - may cause slow confirmations")
             return {
                 'chain_id': chain_id,
                 'network': NETWORK_NAMES.get(chain_id, 'Unknown'),
                 'latest_block': block_number,
-                'gas_price_gwei': round(gas_price / 10 ** 9, 2)
+                'gas_price_gwei': round(gas_price, 6)  # High precision for display
             }
         except Exception as e:
-            return {'error': str(e), 'connected': False}
+            logger.error(f"Failed to get network info: {e}")
+            return {
+                'error': str(e),
+                'connected': False,
+                'network': 'Unknown',
+                'chain_id': None,
+                'latest_block': None,
+                'gas_price_gwei': None
+            }
 
-    #  Balance Operations
     def _validate_address(self, address: str) -> bool:
         """Check if address is valid format."""
         return (address.startswith('0x') and
@@ -176,13 +171,6 @@ class RPCClient:
     def get_balance(self, address: str, unit: str = 'ether') -> Union[int, float]:
         """
         Get balance of an address.
-
-        Args:
-            address: Ethereum address (0x...)
-            unit: 'wei', 'gwei', or 'ether'
-
-        Returns:
-            Balance in requested unit
         """
         if not self._validate_address(address):
             raise ValueError(f"Invalid address: {address}")
@@ -190,19 +178,16 @@ class RPCClient:
         if unit not in ['wei', 'gwei', 'ether']:
             raise ValueError("Unit must be 'wei', 'gwei', or 'ether'")
 
-        # Get balance in wei (smallest unit)
         balance_wei_hex = self._make_rpc_call('eth_getBalance', [address, 'latest'])
         balance_wei = int(balance_wei_hex, 16)
 
-        # Convert to requested unit
         if unit == 'wei':
             return balance_wei
         elif unit == 'gwei':
-            return balance_wei / 1_000_000_000  # 10^9
+            return balance_wei / 1_000_000_000
         else:  # ether
-            return balance_wei / 1_000_000_000_000_000_000  # 10^18
+            return balance_wei / 1_000_000_000_000_000_000
 
-    #  Transaction Preparation
     def get_nonce(self, address: str) -> int:
         """Get the next transaction nonce for an address."""
         if not self._validate_address(address):
@@ -212,9 +197,20 @@ class RPCClient:
         return int(nonce_hex, 16)
 
     def get_gas_price(self, unit: str = 'gwei') -> Union[int, float]:
-        """Get current gas price."""
+        """Get current gas price with fallback for zero values only."""
+        with open(CONFIG_PATH, 'r') as f:
+            config = json.load(f)
+        default_gas_price_gwei = config.get('transaction', {}).get('default_gas_price_gwei', 1.0)
+        default_gas_price_wei = default_gas_price_gwei * 1_000_000_000
+
         gas_price_wei_hex = self._make_rpc_call('eth_gasPrice')
+        logger.info(f"Raw eth_gasPrice hex: {gas_price_wei_hex}")
         gas_price_wei = int(gas_price_wei_hex, 16)
+
+        # Fallback only for zero gas price
+        if gas_price_wei == 0:
+            logger.warning(f"Zero gas price received, using default {default_gas_price_gwei} Gwei")
+            gas_price_wei = default_gas_price_wei
 
         if unit == 'wei':
             return gas_price_wei
@@ -226,12 +222,6 @@ class RPCClient:
     def estimate_gas(self, transaction: Dict[str, Any]) -> int:
         """
         Estimate gas for a transaction.
-
-        Args:
-            transaction: Dict with 'to', 'value', optional 'data'
-
-        Returns:
-            Estimated gas (simple approach)
         """
         if not isinstance(transaction, dict):
             raise ValueError("Transaction must be a dictionary")
@@ -239,7 +229,6 @@ class RPCClient:
         if 'to' not in transaction:
             raise ValueError("Transaction missing 'to' address")
 
-        # Simple fallback: use RPC estimate if possible, else static
         try:
             gas_hex = self._make_rpc_call('eth_estimateGas', [transaction])
             gas = int(gas_hex, 16)
@@ -248,49 +237,36 @@ class RPCClient:
         except Exception as e:
             logger.warning(f"Gas estimation failed: {e}, using static estimate")
 
-        # Static fallback based on transaction type
         if transaction.get('data') and len(transaction['data']) > 2:
-            # Contract call
-            data_bytes = (len(transaction['data']) - 2) // 2  # Remove 0x
-            return 21_000 + (data_bytes * 16)  # Base + data cost
+            data_bytes = (len(transaction['data']) - 2) // 2
+            return 21_000 + (data_bytes * 16)
         else:
-            # Simple ETH transfer
             return 21_000
 
-    #  Transaction Sending
     def send_raw_transaction(self, signed_tx_hex: str) -> str:
         """Send a signed transaction to the network."""
         if not signed_tx_hex.startswith('0x'):
             raise ValueError("Transaction must start with 0x")
 
-        if len(signed_tx_hex) < 100:  # Very rough check
+        if len(signed_tx_hex) < 100:
             logger.warning("Transaction looks unusually short")
 
         tx_hash = self._make_rpc_call('eth_sendRawTransaction', [signed_tx_hex])
         logger.info(f"📤 Transaction sent: {tx_hash}")
         return tx_hash
 
-    #  Transaction Monitoring
     def get_transaction_status(self, tx_hash: str) -> Dict[str, Any]:
         """
         Check transaction status (pending, confirmed, or not found).
-
-        Args:
-            tx_hash: Transaction hash (0x...)
-
-        Returns:
-            Status dictionary
         """
         if not tx_hash.startswith('0x') or len(tx_hash) != 66:
             raise ValueError("Invalid transaction hash")
 
         try:
-            # First check if transaction exists
             tx = self._make_rpc_call('eth_getTransactionByHash', [tx_hash])
             if not tx:
                 return {'status': 'not_found', 'message': 'Transaction not found'}
 
-            # Check if confirmed (has receipt)
             receipt = self._make_rpc_call('eth_getTransactionReceipt', [tx_hash])
             if receipt:
                 status = 'success' if receipt['status'] == '0x1' else 'failed'
@@ -306,7 +282,6 @@ class RPCClient:
         except Exception as e:
             return {'status': 'error', 'message': str(e)}
 
-    #  Block Information
     def get_block_number(self) -> int:
         """Get the latest block number."""
         block_hex = self._make_rpc_call('eth_blockNumber')
@@ -325,13 +300,12 @@ class RPCClient:
 
         return {
             'number': block_number,
-            'timestamp': int(block_data['timestamp'], 16),
+            'timestamp': int(block_data['timestamp'], 16) if block_data.get('timestamp') else 0,
             'miner': block_data.get('miner', '0x0'),
             'gas_used': int(block_data.get('gasUsed', '0x0'), 16),
             'transaction_count': len(block_data.get('transactions', []))
         }
 
-    # Simple Stats
     def get_stats(self) -> Dict[str, Any]:
         """Get basic usage statistics."""
         success_rate = (self.success_count / self.call_count * 100) if self.call_count > 0 else 0
@@ -344,28 +318,24 @@ class RPCClient:
 
     def close(self):
         """Clean up resources."""
+        self.session.close()
         logger.info("RPC Client closed")
 
-
-#  Simple Tests
 if __name__ == '__main__':
     print("🚀 Starting Simple RPC Client Tests")
     print("=" * 50)
 
-    # Create client
     client = RPCClient(timeout=5, max_retries=2)
 
-    # Test 1: Network Connection
     print("\n1️⃣ Testing Network Connection...")
     try:
         info = client.get_network_info()
         print(f"   ✅ Connected to {info['network']}")
         print(f"   ✅ Latest Block: {info['latest_block']:,}")
-        print(f"   ✅ Gas Price: {info['gas_price_gwei']} Gwei")
+        print(f"   ✅ Gas Price: {info['gas_price_gwei']:.6f} Gwei")
     except Exception as e:
         print(f"   ❌ Connection failed: {e}")
 
-    # Test 2: Balance Check
     print("\n2️⃣ Testing Balance Operations...")
     zero_address = '0x0000000000000000000000000000000000000000'
     try:
@@ -377,15 +347,13 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"   ❌ Balance test failed: {e}")
 
-    # Test 3: Transaction Preparation
     print("\n3️⃣ Testing Transaction Preparation...")
     try:
         nonce = client.get_nonce(zero_address)
         gas_price = client.get_gas_price('gwei')
         print(f"   ✅ Nonce: {nonce}")
-        print(f"   ✅ Gas Price: {gas_price:.2f} Gwei")
+        print(f"   ✅ Gas Price: {gas_price:.6f} Gwei")
 
-        # Simple gas estimation
         sample_tx = {
             'to': '0x742d35Cc6634C0532925a3b8D7C4aE7B6733E6B5',
             'value': '0x16345785d8a0000'  # 0.1 ETH
@@ -395,7 +363,6 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"   ❌ Transaction prep failed: {e}")
 
-    # Test 4: Transaction Status
     print("\n4️⃣ Testing Transaction Status...")
     test_hash = '0x0000000000000000000000000000000000000000000000000000000000000000'
     try:
@@ -404,7 +371,6 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"   ❌ Status test failed: {e}")
 
-    # Test 5: Block Information
     print("\n5️⃣ Testing Block Information...")
     try:
         block_num = client.get_block_number()
@@ -416,14 +382,12 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"   ❌ Block test failed: {e}")
 
-    # Test 6: Input Validation
     print("\n6️⃣ Testing Input Validation...")
     test_cases = [
         ('invalid_addr', "Invalid address"),
         ('0xshort', "Invalid address"),
-        ('0x' + 'a' * 40, "Valid format but random")  # This should work
+        ('0x' + 'a' * 40, "Valid format but random")
     ]
-
     for addr, expected in test_cases:
         try:
             balance = client.get_balance(addr, 'ether')
@@ -437,13 +401,19 @@ if __name__ == '__main__':
             else:
                 print(f"   ❌ Unexpected error for valid format: {e}")
 
-    # Test 7: Stats
     print("\n7️⃣ Testing Statistics...")
     stats = client.get_stats()
     print(f"   ✅ Total Calls: {stats['total_calls']}")
     print(f"   ✅ Success Rate: {stats['success_rate']}%")
 
-    # Cleanup
+    print("\n8️⃣ Testing Retry Logic...")
+    try:
+        temp_client = RPCClient(timeout=0.001, max_retries=2)
+        temp_client.get_chain_id()
+        print("   ❌ Should have raised timeout error")
+    except ConnectionError as e:
+        print(f"   ✅ Retry caught: {e}")
+
     client.close()
     print("\nAll Tests Completed!")
     print("=" * 50)

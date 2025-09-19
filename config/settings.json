@@ -9,5 +9,10 @@
   "wallet": {
     "storage_path": "./wallets/",
     "default_wallet": "0xd6dcfbeed8d995762969d6249bb9fac853d0b917"
+  },
+  "transaction": {
+    "default_gas_limit": 21000,
+    "max_gas_price_gwei": 100,
+    "default_gas_price_gwei": 1.0
   }
 }
