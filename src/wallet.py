@@ -759,8 +759,8 @@ if __name__ == '__main__':
     # Test wallet_import
     print("\nTesting wallet_import")
     try:
-        test_private_key = secrets.token_bytes(32).hex()
-        wallet_import(test_private_key, "clitestpassword123")
+        test_private_key = "5ab4b4b363db0e5597bb60e33e5a07b34762e1a36ad63e77a947778feb869f74"
+        wallet_import(test_private_key, "Parsa1382@")
         print("Success: CLI wallet import completed")
     except Exception as e:
         print(f"Failed: {e}")
