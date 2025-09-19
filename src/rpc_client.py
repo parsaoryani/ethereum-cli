@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 # Simple network names
 NETWORK_NAMES = {
     11155111: 'Sepolia Testnet'
+
 }
 
 class RPCClient:
@@ -255,18 +256,26 @@ class RPCClient:
         logger.info(f"📤 Transaction sent: {tx_hash}")
         return tx_hash
 
+
     def get_transaction_status(self, tx_hash: str) -> Dict[str, Any]:
         """
         Check transaction status (pending, confirmed, or not found).
+        Args:
+            tx_hash: Transaction hash
+        Returns:
+            Dictionary with status, message, gas_used, and block_number
         """
         if not tx_hash.startswith('0x') or len(tx_hash) != 66:
             raise ValueError("Invalid transaction hash")
-
         try:
             tx = self._make_rpc_call('eth_getTransactionByHash', [tx_hash])
             if not tx:
-                return {'status': 'not_found', 'message': 'Transaction not found'}
-
+                return {
+                    'status': 'not_found',
+                    'message': 'Transaction not found',
+                    'gas_used': 0,
+                    'block_number': 'N/A'
+                }
             receipt = self._make_rpc_call('eth_getTransactionReceipt', [tx_hash])
             if receipt:
                 status = 'success' if receipt['status'] == '0x1' else 'failed'
@@ -274,13 +283,24 @@ class RPCClient:
                 return {
                     'status': status,
                     'message': f"Confirmed in block {block_num}",
-                    'gas_used': int(receipt.get('gasUsed', '0x0'), 16)
+                    'gas_used': int(receipt.get('gasUsed', '0x0'), 16),
+                    'block_number': block_num
                 }
             else:
-                return {'status': 'pending', 'message': 'Transaction pending'}
-
+                return {
+                    'status': 'pending',
+                    'message': 'Transaction pending',
+                    'gas_used': 0,
+                    'block_number': 'N/A'
+                }
         except Exception as e:
-            return {'status': 'error', 'message': str(e)}
+            return {
+                'status': 'error',
+                'message': str(e),
+                'gas_used': 0,
+                'block_number': 'N/A'
+            }
+
 
     def get_block_number(self) -> int:
         """Get the latest block number."""
@@ -364,9 +384,10 @@ if __name__ == '__main__':
         print(f"   ❌ Transaction prep failed: {e}")
 
     print("\n4️⃣ Testing Transaction Status...")
-    test_hash = '0x0000000000000000000000000000000000000000000000000000000000000000'
+    test_hash = '0xb54d72c08764463ee2a101ef63640855abed01cc7cb040be1e04b2c9c3e2dfd3'
     try:
         status = client.get_transaction_status(test_hash)
+        #print(status.keys())
         print(f"   ✅ Status: {status['status']} - {status['message']}")
     except Exception as e:
         print(f"   ❌ Status test failed: {e}")
