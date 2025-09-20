@@ -196,16 +196,35 @@ ethereum-cli/
 ```
 
 ---
+Got it 👍 You don’t need to copy all those details into your README.
+Here’s a **short and clear section** you can add so contributors know how to run tests:
 
 ## 🧪 Running Tests
 
-Tests will be implemented in the `tests/` directory.
-Run with:
+Tests are located in the `tests/` directory and use Python's built-in **unittest** framework.
+
+### Run all tests
+````
+python -m unittest discover -s tests -v
+````
+
+### Run a specific test file
 
 ```bash
-pip install pytest pytest-cov
-pytest --cov=src tests/ --cov-report=html
+python -m unittest tests.test_wallet -v
 ```
+
+### Run a specific test case
+
+```bash
+python -m unittest tests.test_wallet.TestWalletManager.test_set_default_wallet_success -v
+```
+
+> ⚠️ Note: Tests create and use files inside `tests/test_config/` and `tests/test_wallet/`.
+> Your main config files (e.g., `config/settings.json`, `wallets/default.txt`) will be backed up and restored automatically.
+
+
+
 
 ---
 
