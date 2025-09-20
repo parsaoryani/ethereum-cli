@@ -4,3 +4,4 @@ exports/
 *.enc
 .DS_Store
 tests/test_*/
+src/run_demo.py
