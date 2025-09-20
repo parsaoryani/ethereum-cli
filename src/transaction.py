@@ -28,21 +28,37 @@ class TransactionManager:
         Initialize TransactionManager with configuration and dependencies.
         Loads network settings from config file and initializes RPC client and wallet manager.
         """
-        with open(CONFIG_PATH, 'r') as f:
-            self.config = json.load(f)
+        try:
+            with open(CONFIG_PATH, 'r') as f:
+                self.config = json.load(f)
+        except FileNotFoundError:
+            logger.error("Configuration file not found at: %s", CONFIG_PATH)
+            raise ValueError(f"Configuration file not found at: {CONFIG_PATH}")
+        except json.JSONDecodeError:
+            logger.error("Invalid JSON format in configuration file: %s", CONFIG_PATH)
+            raise ValueError(f"Invalid JSON format in configuration file: {CONFIG_PATH}")
+
+        required_keys = ['network', 'transaction']
+        for key in required_keys:
+            if key not in self.config:
+                logger.error("Missing required configuration key: %s", key)
+                raise ValueError(f"Missing required configuration key: {key}")
 
         self.rpc_client = RPCClient(
-            rpc_url=self.config['network']['rpc_url'],
-            chain_id=self.config['network']['chain_id'],
+            rpc_url=self.config['network'].get('rpc_url', ''),
+            chain_id=self.config['network'].get('chain_id', 0),
             timeout=10,
             max_retries=3
         )
         self.wallet_manager = WalletManager()
 
-        self.default_gas_limit = self.config.get('transaction', {}).get('default_gas_limit', 21000)
-        self.max_gas_price_gwei = self.config.get('transaction', {}).get('max_gas_price_gwei', 100)
-        self.default_gas_price_gwei = self.config.get('transaction', {}).get('default_gas_price_gwei', 1.0)
-        self.etherscan_api_key = self.config.get('transaction', {}).get('etherscan_api_key', '')
+        self.default_gas_limit = self.config['transaction'].get('default_gas_limit', 21000)
+        self.max_gas_price_gwei = self.config['transaction'].get('max_gas_price_gwei', 100)
+        self.default_gas_price_gwei = self.config['transaction'].get('default_gas_price_gwei', 1.0)
+        self.etherscan_api_key = self.config['transaction'].get('etherscan_api_key', '')
+
+        if not self.etherscan_api_key:
+            logger.warning("Etherscan API key not configured in settings.json")
 
         logger.info("✅ TransactionManager initialized")
 
@@ -244,9 +260,11 @@ class TransactionManager:
                 response = requests.get(url, timeout=10)
                 response.raise_for_status()
                 data = response.json()
-                if data['status'] != '1':
-                    logger.error(f"Etherscan API error: {data['message']}")
-                    raise ValueError(f"Etherscan API error: {data['message']}")
+                if data.get('status') != '1':
+                    error_message = data.get('message', 'Unknown Etherscan API error')
+                    error_result = data.get('result', 'No details provided')
+                    logger.error(f"Etherscan API error: {error_message}, details: {error_result}")
+                    raise ValueError(f"Etherscan API error: {error_message}, details: {error_result}")
                 transactions = [{
                     'hash': tx['hash'],
                     'from': to_checksum_address(tx['from']),
@@ -261,16 +279,18 @@ class TransactionManager:
             except requests.RequestException as e:
                 logger.warning(f"Etherscan fetch attempt {attempt + 1} failed: {e}")
                 if attempt == 2:
-                    raise ValueError(f"Failed to fetch transaction history after retries: {e}")
+                    raise ValueError(f"Failed to fetch transaction history after retries: {str(e)}")
                 time.sleep(1)  # Delay to avoid rate limiting
         raise ValueError("Failed to fetch transaction history after retries")
 
-    def export_transaction_history(self, address: str, output_file: str) -> None:
+    def export_transaction_history(self, address: str, output_file: str = None) -> None:
         """
         Export transaction history to a JSON file in the specified exports directory.
         Supports CLI command: ./cli tx export --output [filename]
         """
         transactions = self.get_transaction_history(address)
+        # Use full wallet address in filename if output_file not provided
+        output_file = output_file or f"tx_history_{address.lower().replace('0x', '')}.json"
         output_path = EXPORT_PATH / output_file
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -373,11 +393,11 @@ if __name__ == '__main__':
             except ValueError as e:
                 print(f"❌ Failed to fetch transaction history: {e}")
 
-            print(f"\n5️⃣ Exporting transaction history to 'exports/tx_history_{history_address[-6:]}.json'")
-            output_file = f"tx_history_{history_address[-6:]}.json"
+            print(f"\n5️⃣ Exporting transaction history to 'exports/tx_history_{history_address.lower().replace('0x', '')}.json'")
             try:
-                tx_manager.export_transaction_history(history_address, output_file)
-                print(f"✅ Transaction history exported to {EXPORT_PATH / output_file}")
+                tx_manager.export_transaction_history(history_address)
+                filename = f"tx_history_{history_address.lower().replace('0x', '')}.json"
+                print(f"✅ Transaction history exported to {EXPORT_PATH / filename}")
             except ValueError as e:
                 print(f"❌ Failed to export transaction history: {e}")
 
