@@ -2,17 +2,18 @@
   "network": {
     "name": "Sepolia Testnet",
     "chain_id": 11155111,
-    "rpc_url": "https://go.getblock.io/62f3f854b9bd42e094e50815d809fda1",
+    "rpc_url": "https://go.getblock.io/7018d72bb3df4d5f82120f1d92ca9a80",
     "currency_symbol": "ETH",
     "block_explorer": "https://sepolia.etherscan.io"
   },
   "wallet": {
     "storage_path": "./wallets/",
-    "default_wallet": "0x12479992adeaf70772ed5855f4b7f38938d13326"
+    "default_wallet": "0xb0b51e4bb8e9ecc0a89d4bee4cbe02201acb936b"
   },
   "transaction": {
     "default_gas_limit": 21000,
     "max_gas_price_gwei": 100,
-    "default_gas_price_gwei": 1.0
+    "default_gas_price_gwei": 1.0,
+    "etherscan_api_key": "4S5126VMHX7QTAI3WMI3C13SBR8W8K6RWJ"
   }
 }
