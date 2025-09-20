@@ -178,7 +178,7 @@ class WalletManager:
         wallet_data = self._load_wallet(address)
 
         # Get current balance from Ethereum network using RPC client
-        from rpc_client import RPCClient
+        from src.rpc_client import RPCClient
         client = RPCClient()
         try:
             # Get balance in different units
@@ -243,26 +243,14 @@ class WalletManager:
         return wallets
 
     def set_default_wallet(self, address: str) -> bool:
-        """
-        Set the default wallet address.
-
-        Args:
-            address: Ethereum wallet address
-
-        Returns:
-            True if successful, False if address not found
-        """
+        if not self._is_valid_address(address):
+            raise ValueError("Invalid address")
         if not self._wallet_file_exists(address):
-            return False
-
-        # Update default wallet file
+            raise FileNotFoundError(f"Wallet file not found for address: {address}")
         self.default_wallet_file.write_text(address)
-
-        # Update configuration
         self.config['wallet']['default_wallet'] = address
         with open(CONFIG_PATH, 'w') as f:
             json.dump(self.config, f, indent=2)
-
         return True
 
     def get_default_wallet(self) -> Optional[str]:
