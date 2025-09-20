@@ -8,8 +8,8 @@ import requests
 from eth_account import Account
 from eth_utils import to_bytes, to_hex, to_checksum_address
 
-from rpc_client import RPCClient
-from wallet import WalletManager
+from src.rpc_client import RPCClient
+from src.wallet import WalletManager
 
 # Configuration path
 CONFIG_PATH = Path(__file__).parent.parent / 'config' / 'settings.json'
