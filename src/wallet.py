@@ -258,18 +258,19 @@ class WalletManager:
         Get the default wallet address.
 
         Returns:
-            Default wallet address or None if not set
+            Default wallet address if set.
+
+        Raises:
+            ValueError: If no default wallet is set or the wallet file does not exist.
         """
         try:
             default_address = self.default_wallet_file.read_text().strip()
             if default_address and self._wallet_file_exists(default_address):
                 return default_address
+            raise ValueError("No default wallet set")
         except (FileNotFoundError, ValueError):
-            pass
+            raise ValueError("No default wallet set")
 
-        return None
-
-    #from pysha3 import keccak_256
 
     def _private_key_to_address(self, private_key_bytes: bytes) -> str:
         """
