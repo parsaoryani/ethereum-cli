@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 from typing import Dict, Any
 import rlp
+import requests
 from eth_account import Account
 from eth_utils import to_bytes, to_hex, to_checksum_address
 
@@ -12,6 +13,7 @@ from wallet import WalletManager
 
 # Configuration path
 CONFIG_PATH = Path(__file__).parent.parent / 'config' / 'settings.json'
+EXPORT_PATH = Path('/Users/parsaoryani/PycharmProjects/ethereum-cli/exports')
 
 # Setup logging
 logging.basicConfig(
@@ -40,6 +42,7 @@ class TransactionManager:
         self.default_gas_limit = self.config.get('transaction', {}).get('default_gas_limit', 21000)
         self.max_gas_price_gwei = self.config.get('transaction', {}).get('max_gas_price_gwei', 100)
         self.default_gas_price_gwei = self.config.get('transaction', {}).get('default_gas_price_gwei', 1.0)
+        self.etherscan_api_key = self.config.get('transaction', {}).get('etherscan_api_key', '')
 
         logger.info("✅ TransactionManager initialized")
 
@@ -220,6 +223,65 @@ class TransactionManager:
             logger.error(f"Failed to check transaction status: {e}")
             raise ValueError(f"Failed to check transaction status: {e}")
 
+    def get_transaction_history(self, address: str) -> list:
+        """
+        Retrieve transaction history for an address using Etherscan API.
+        Supports CLI command: ./cli tx history [--address [address]]
+        """
+        if not self.wallet_manager._is_valid_address(address):
+            raise ValueError(f"Invalid address: {address}")
+        if not self.etherscan_api_key:
+            raise ValueError("Etherscan API key not configured in settings.json")
+
+        address = to_checksum_address(address)
+        url = (
+            f"https://api-sepolia.etherscan.io/api?module=account&action=txlist"
+            f"&address={address}&sort=desc&apikey={self.etherscan_api_key}"
+        )
+        logger.info(f"Fetching transaction history for {address} from Etherscan")
+        for attempt in range(3):
+            try:
+                response = requests.get(url, timeout=10)
+                response.raise_for_status()
+                data = response.json()
+                if data['status'] != '1':
+                    logger.error(f"Etherscan API error: {data['message']}")
+                    raise ValueError(f"Etherscan API error: {data['message']}")
+                transactions = [{
+                    'hash': tx['hash'],
+                    'from': to_checksum_address(tx['from']),
+                    'to': to_checksum_address(tx['to']) if tx.get('to') else '',
+                    'value': int(tx['value']) / 1e18,  # Convert wei to ETH
+                    'gas': int(tx['gasUsed']),
+                    'gasPrice': int(tx['gasPrice']),
+                    'blockNumber': int(tx['blockNumber'])
+                } for tx in data['result']]
+                logger.info(f"Retrieved {len(transactions)} transactions for {address}")
+                return transactions
+            except requests.RequestException as e:
+                logger.warning(f"Etherscan fetch attempt {attempt + 1} failed: {e}")
+                if attempt == 2:
+                    raise ValueError(f"Failed to fetch transaction history after retries: {e}")
+                time.sleep(1)  # Delay to avoid rate limiting
+        raise ValueError("Failed to fetch transaction history after retries")
+
+    def export_transaction_history(self, address: str, output_file: str) -> None:
+        """
+        Export transaction history to a JSON file in the specified exports directory.
+        Supports CLI command: ./cli tx export --output [filename]
+        """
+        transactions = self.get_transaction_history(address)
+        output_path = EXPORT_PATH / output_file
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            with output_path.open('w') as f:
+                json.dump(transactions, f, indent=2)
+            logger.info(f"Transaction history exported to {output_path}")
+        except Exception as e:
+            logger.error(f"Failed to export transactions: {e}")
+            raise ValueError(f"Failed to export transactions: {e}")
+
     def close(self):
         """
         Clean up resources by closing the RPC client.
@@ -228,7 +290,7 @@ class TransactionManager:
         logger.info("TransactionManager closed")
 
 if __name__ == '__main__':
-    print("🚀 Testing TransactionManager Transaction Sending")
+    print("🚀 Testing TransactionManager Transaction Sending and History")
     print("=" * 50)
     try:
         tx_manager = TransactionManager()
@@ -236,10 +298,11 @@ if __name__ == '__main__':
         network_info = tx_manager.rpc_client.get_network_info()
         print(f"Network: {network_info['network']}, Chain ID: {network_info['chain_id']}")
         test_address = "0xB0b51E4bb8E9EcC0a89D4BEe4Cbe02201acb936b"
+        history_address = "0x7e4dd6856aa001b78f1f2fE1A4A1f0e5b2cce5f7"
         balance = tx_manager.rpc_client.get_balance(test_address, "ether")
         print(f"Test address balance: {balance:.6f} SepoliaETH")
 
-        to_address = "0x7e4dd6856aa001b78f1f2fe1a4a1f0e5b2cce5f7"
+        to_address = history_address
         value_ether = 0.01
         password = "Parsa1382@"  # Replace with actual password
 
@@ -293,6 +356,30 @@ if __name__ == '__main__':
             print("\n3️⃣ Checking final balance")
             new_balance = tx_manager.rpc_client.get_balance(test_address, "ether")
             print(f"New balance for {test_address}: {new_balance:.6f} SepoliaETH")
+
+            print(f"\n4️⃣ Fetching transaction history for {history_address}")
+            try:
+                history = tx_manager.get_transaction_history(history_address)
+                print(f"Retrieved {len(history)} transactions for {history_address}:")
+                for tx in history:
+                    print(f"  Hash: {tx['hash']}")
+                    print(f"  From: {tx['from']}")
+                    print(f"  To: {tx['to']}")
+                    print(f"  Value: {tx['value']:.6f} ETH")
+                    print(f"  Gas Used: {tx['gas']:,}")
+                    print(f"  Gas Price: {tx['gasPrice']:,} wei")
+                    print(f"  Block Number: {tx['blockNumber']}")
+                    print("-" * 50)
+            except ValueError as e:
+                print(f"❌ Failed to fetch transaction history: {e}")
+
+            print(f"\n5️⃣ Exporting transaction history to 'exports/tx_history_{history_address[-6:]}.json'")
+            output_file = f"tx_history_{history_address[-6:]}.json"
+            try:
+                tx_manager.export_transaction_history(history_address, output_file)
+                print(f"✅ Transaction history exported to {EXPORT_PATH / output_file}")
+            except ValueError as e:
+                print(f"❌ Failed to export transaction history: {e}")
 
         except (ValueError, Exception) as e:
             print(f"❌ Transaction send failed: {e}")
