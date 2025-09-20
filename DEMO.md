@@ -6,7 +6,7 @@ This document shows the output of all CLI commands specified in the task, coveri
 
 ### 1. Wallet Generate
 ```bash
-python /Users/parsaoryani/PycharmProjects/ethereum-cli/cli wallet generate --password "Parsa1382@"
+./cli wallet generate --password "Parsa1382@"
 ```
 ```output
 Wallet Address: 0x03ce7a235d4f49285067962921358d7800e6ce3c
@@ -16,7 +16,7 @@ You will need it to access your funds.
 
 ### 2. Wallet Import (Private Key 1)
 ```bash
-python /Users/parsaoryani/PycharmProjects/ethereum-cli/cli wallet import --private-key "cc347ec1f2d4a9e13bcce7016dee94b4a0463a37871e4489c8ea60ab67a0b96d" --password "Parsa1382@"
+./cli wallet import --private-key "cc347ec1f2d4a9e13bcce7016dee94b4a0463a37871e4489c8ea60ab67a0b96d" --password "Parsa1382@"
 ```
 ```output
 Error: Wallet with address 0x7e4dd6856aa001b78f1f2fe1a4a1f0e5b2cce5f7 already exists
@@ -24,7 +24,7 @@ Error: Wallet with address 0x7e4dd6856aa001b78f1f2fe1a4a1f0e5b2cce5f7 already ex
 
 ### 3. Wallet Import (Private Key 2)
 ```bash
-python /Users/parsaoryani/PycharmProjects/ethereum-cli/cli wallet import --private-key "93786dc60ed49ef8c1c481910c439b0287aa5172c2c2d82892e8d2a58d0ead8f" --password "Parsa1382@"
+./cli wallet import --private-key "93786dc60ed49ef8c1c481910c439b0287aa5172c2c2d82892e8d2a58d0ead8f" --password "Parsa1382@"
 ```
 ```output
 Imported Wallet: 0xb12c3270cf65489c19efb34b0bd36378234dd343
@@ -33,7 +33,7 @@ IMPORTANT: Write down your password and keep it secure!
 
 ### 4. Wallet Show (Valid Password)
 ```bash
-python /Users/parsaoryani/PycharmProjects/ethereum-cli/cli wallet show --password "Parsa1382@"
+./cli wallet show --password "Parsa1382@"
 ```
 ```output
 Wallet Address: 0xb0b51e4bb8e9ecc0a89d4bee4cbe02201acb936b
@@ -56,7 +56,7 @@ Private Key: 5ab4b4b363...
 
 ### 5. Wallet Show (Invalid Password)
 ```bash
-python /Users/parsaoryani/PycharmProjects/ethereum-cli/cli wallet show --password "wrong_password"
+./cli wallet show --password "wrong_password"
 ```
 ```output
 Wallet Address: 0xb0b51e4bb8e9ecc0a89d4bee4cbe02201acb936b
@@ -81,7 +81,7 @@ Private Key: [Enter password to view]
 
 ### 6. Balance (Default Wallet)
 ```bash
-python /Users/parsaoryani/PycharmProjects/ethereum-cli/cli balance
+./cli balance
 ```
 ```output
 Address: 0xb0b51e4bb8e9ecc0a89d4bee4cbe02201acb936b
@@ -102,7 +102,7 @@ Balance: 58,789,873,668,410,000 Wei
 
 ### 7. Balance (From Address)
 ```bash
-python /Users/parsaoryani/PycharmProjects/ethereum-cli/cli balance --address "0xB0b51E4bb8E9EcC0a89D4BEe4Cbe02201acb936b"
+./cli balance --address "0xB0b51E4bb8E9EcC0a89D4BEe4Cbe02201acb936b"
 ```
 ```output
 Address: 0xB0b51E4bb8E9EcC0a89D4BEe4Cbe02201acb936b
@@ -123,7 +123,7 @@ Balance: 58,789,873,668,410,000 Wei
 
 ### 8. Balance (To Address)
 ```bash
-python /Users/parsaoryani/PycharmProjects/ethereum-cli/cli balance --address "0x7E4Dd6856Aa001b78f1f2fE1A4A1f0e5b2CcE5f7"
+./cli balance --address "0x7E4Dd6856Aa001b78f1f2fE1A4A1f0e5b2CcE5f7"
 ```
 ```output
 Address: 0x7E4Dd6856Aa001b78f1f2fE1A4A1f0e5b2CcE5f7
@@ -144,7 +144,7 @@ Balance: 240,999,852,016,465,000 Wei
 
 ### 9. Balance (Invalid Address)
 ```bash
-python /Users/parsaoryani/PycharmProjects/ethereum-cli/cli balance --address "invalid"
+./cli balance --address "invalid"
 ```
 ```output
 Error: Invalid address: invalid
@@ -159,7 +159,7 @@ Error: Invalid address: invalid
 
 ### 10. Send Transaction (Valid Amount)
 ```bash
-python /Users/parsaoryani/PycharmProjects/ethereum-cli/cli send --to "0x7E4Dd6856Aa001b78f1f2fE1A4A1f0e5b2CcE5f7" --amount 0.001 --password "Parsa1382@"
+./cli send --to "0x7E4Dd6856Aa001b78f1f2fE1A4A1f0e5b2CcE5f7" --amount 0.001 --password "Parsa1382@"
 ```
 ```output
 Transaction sent successfully! Hash: 0x9052cd8f106a52e1680e790be79b86a068085e8358acb15575c73c5b21dd0a14
@@ -226,7 +226,7 @@ Check transaction on Sepolia Etherscan: https://sepolia.etherscan.io/tx/0x9052cd
 
 ### 11. Send Transaction (Negative Amount)
 ```bash
-python /Users/parsaoryani/PycharmProjects/ethereum-cli/cli send --to "0x7E4Dd6856Aa001b78f1f2fE1A4A1f0e5b2CcE5f7" --amount -0.001 --password "Parsa1382@"
+./cli send --to "0x7E4Dd6856Aa001b78f1f2fE1A4A1f0e5b2CcE5f7" --amount -0.001 --password "Parsa1382@"
 ```
 ```output
 Error: Amount must be positive
@@ -241,7 +241,7 @@ Error: Amount must be positive
 
 ### 12. Send Transaction (Invalid To Address)
 ```bash
-python /Users/parsaoryani/PycharmProjects/ethereum-cli/cli send --to "invalid" --amount 0.001 --password "Parsa1382@"
+./cli send --to "invalid" --amount 0.001 --password "Parsa1382@"
 ```
 ```output
 Error: Invalid recipient address: invalid
@@ -270,7 +270,7 @@ Error: Invalid recipient address: invalid
 
 ### 13. Transaction Status (Valid Hash)
 ```bash
-python /Users/parsaoryani/PycharmProjects/ethereum-cli/cli tx status --hash "0xfae30a5dcf0e6776cda8a01efb26501702f733f7e4335fffe60bd035a458c647"
+./cli tx status --hash "0xfae30a5dcf0e6776cda8a01efb26501702f733f7e4335fffe60bd035a458c647"
 ```
 ```output
 Transaction Hash: 0xfae30a5dcf0e6776cda8a01efb26501702f733f7e4335fffe60bd035a458c647
@@ -296,7 +296,7 @@ Block Number: 9240825
 
 ### 14. Transaction Status (Invalid Hash)
 ```bash
-python /Users/parsaoryani/PycharmProjects/ethereum-cli/cli tx status --hash "0x123"
+./cli tx status --hash "0x123"
 ```
 ```output
 Error: Failed to check transaction status: Invalid transaction hash
@@ -312,7 +312,7 @@ Error: Failed to check transaction status: Invalid transaction hash
 
 ### 15. Transaction History (Default Wallet)
 ```bash
-python /Users/parsaoryani/PycharmProjects/ethereum-cli/cli tx history
+./cli tx history
 ```
 ```output
 Retrieved 27 transactions for 0xb0b51e4bb8e9ecc0a89d4bee4cbe02201acb936b:
@@ -546,7 +546,7 @@ Block Number: 9222066
 
 ### 16. Transaction History (From Address)
 ```bash
-python /Users/parsaoryani/PycharmProjects/ethereum-cli/cli tx history --address "0xB0b51E4bb8E9EcC0a89D4BEe4Cbe02201acb936b"
+./cli tx history --address "0xB0b51E4bb8E9EcC0a89D4BEe4Cbe02201acb936b"
 ```
 ```output
 Retrieved 27 transactions for 0xB0b51E4bb8E9EcC0a89D4BEe4Cbe02201acb936b:
@@ -780,7 +780,7 @@ Block Number: 9222066
 
 ### 17. Transaction History (To Address)
 ```bash
-python /Users/parsaoryani/PycharmProjects/ethereum-cli/cli tx history --address "0x7E4Dd6856Aa001b78f1f2fE1A4A1f0e5b2CcE5f7"
+./cli tx history --address "0x7E4Dd6856Aa001b78f1f2fE1A4A1f0e5b2CcE5f7"
 ```
 ```output
 Retrieved 27 transactions for 0x7E4Dd6856Aa001b78f1f2fE1A4A1f0e5b2CcE5f7:
@@ -1014,7 +1014,7 @@ Block Number: 9221975
 
 ### 18. Transaction History (Invalid Address)
 ```bash
-python /Users/parsaoryani/PycharmProjects/ethereum-cli/cli tx history --address "invalid"
+./cli tx history --address "invalid"
 ```
 ```output
 Error: Invalid address: invalid
@@ -1029,7 +1029,7 @@ Error: Invalid address: invalid
 
 ### 19. Transaction Export (Default Wallet)
 ```bash
-python /Users/parsaoryani/PycharmProjects/ethereum-cli/cli tx export --output "tx_history.json"
+./cli tx export --output "tx_history.json"
 ```
 ```output
 Transaction history exported to: /Users/parsaoryani/PycharmProjects/ethereum-cli/exports/tx_history.json
@@ -1047,7 +1047,7 @@ Transaction history exported to: /Users/parsaoryani/PycharmProjects/ethereum-cli
 
 ### 20. Transaction Export (Specific Address)
 ```bash
-python /Users/parsaoryani/PycharmProjects/ethereum-cli/cli tx export --address "0x7E4Dd6856Aa001b78f1f2fE1A4A1f0e5b2CcE5f7" --output "tx_history_to.json"
+./cli tx export --address "0x7E4Dd6856Aa001b78f1f2fE1A4A1f0e5b2CcE5f7" --output "tx_history_to.json"
 ```
 ```output
 Transaction history exported to: /Users/parsaoryani/PycharmProjects/ethereum-cli/exports/tx_history_to.json
