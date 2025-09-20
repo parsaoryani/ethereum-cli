@@ -3,10 +3,8 @@ import logging
 import time
 from pathlib import Path
 from typing import Dict, Any
-import rlp
 from eth_account import Account
-from eth_account.messages import encode_defunct
-from eth_utils import to_bytes, to_hex
+from eth_utils import to_checksum_address, to_bytes, to_hex
 
 from rpc_client import RPCClient
 from wallet import WalletManager
@@ -21,7 +19,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
 class TransactionManager:
     def __init__(self):
         """
@@ -32,13 +29,14 @@ class TransactionManager:
 
         self.rpc_client = RPCClient(
             rpc_url=self.config['network']['rpc_url'],
-            chain_id=self.config['network']['chain_id']
+            chain_id=self.config['network']['chain_id'],
+            timeout=10,
+            max_retries=3
         )
         self.wallet_manager = WalletManager()
 
         self.default_gas_limit = self.config.get('transaction', {}).get('default_gas_limit', 21000)
         self.max_gas_price_gwei = self.config.get('transaction', {}).get('max_gas_price_gwei', 100)
-        self.history_block_limit = self.config.get('transaction', {}).get('history_block_limit', 1000)
 
         logger.info("✅ TransactionManager initialized")
 
@@ -53,6 +51,8 @@ class TransactionManager:
         if value_ether <= 0:
             raise ValueError("Amount must be positive")
 
+        to_address = to_checksum_address(to_address)
+        from_address = to_checksum_address(from_address)
         value_wei = int(value_ether * 1_000_000_000_000_000_000)
         balance_wei = self.rpc_client.get_balance(from_address, 'wei')
         if balance_wei < value_wei:
@@ -74,6 +74,7 @@ class TransactionManager:
         gas_price = int(min(self.rpc_client.get_gas_price('gwei'), self.max_gas_price_gwei) * 1_000_000_000)
 
         try:
+            # Convert value to hex for eth_estimateGas
             gas_limit = self.rpc_client.estimate_gas({
                 'to': to_address,
                 'value': to_hex(value_wei),
@@ -120,41 +121,24 @@ class TransactionManager:
             if field not in transaction:
                 raise ValueError(f"Missing transaction field: {field}")
 
-        # Prepare transaction for signing
-        tx = {
-            'nonce': transaction['nonce'],
-            'gasPrice': transaction['gasPrice'],
-            'gas': transaction['gas'],
-            'to': to_bytes(hexstr=transaction['to']) if transaction['to'] else b'',
-            'value': transaction['value'],
-            'data': transaction['data'],
-            'chainId': transaction['chainId']
+        # Ensure all numeric fields are integers
+        transaction = {
+            k: int(v) if k in ['nonce', 'value', 'gas', 'gasPrice', 'chainId'] else v
+            for k, v in transaction.items()
         }
 
         # Sign transaction using eth_account
-        signed_tx = Account.sign_transaction(tx, private_key)
-        signed_tx_raw = rlp.encode([
-            tx['nonce'],
-            tx['gasPrice'],
-            tx['gas'],
-            tx['to'],
-            tx['value'],
-            tx['data'],
-            signed_tx.v,
-            signed_tx.r,
-            signed_tx.s
-        ])
-
-        logger.info(f"Signed transaction: {to_hex(signed_tx_raw)[:50]}...")
+        signed_tx = Account.sign_transaction(transaction, private_key)
+        logger.info(f"Signed transaction hash: {to_hex(signed_tx.hash)[:50]}...")
 
         # Verify signature
-        recovered_address = Account.recover_transaction(to_hex(signed_tx_raw))
+        recovered_address = Account.recover_transaction(signed_tx.raw_transaction)
         if recovered_address.lower() != expected_address.lower():
             logger.error(f"Signature verification failed: recovered={recovered_address}, expected={expected_address}")
             raise ValueError(
                 f"Signature verification failed: recovered {recovered_address}, expected {expected_address}")
 
-        return signed_tx_raw
+        return signed_tx.raw_transaction
 
     def send_transaction(self, from_address: str, to_address: str, value_ether: float, password: str) -> str:
         """
@@ -168,7 +152,16 @@ class TransactionManager:
 
         logger.info("Building transaction...")
         transaction = self._build_transaction(from_address, to_address, value_ether)
-        logger.info(f"Transaction built: {transaction}")
+
+        # Convert bytes to hex for JSON serialization
+        log_transaction = transaction.copy()
+        log_transaction['data'] = to_hex(log_transaction['data'])
+        log_transaction['value'] = to_hex(log_transaction['value'])
+        log_transaction['gas'] = to_hex(log_transaction['gas'])
+        log_transaction['gasPrice'] = to_hex(log_transaction['gasPrice'])
+        log_transaction['nonce'] = to_hex(log_transaction['nonce'])
+        log_transaction['chainId'] = to_hex(log_transaction['chainId'])
+        logger.info(f"Transaction built: {json.dumps(log_transaction, indent=2)}")
 
         logger.info("Signing transaction...")
         signed_tx = self._sign_transaction(transaction, wallet_info['private_key'])
@@ -185,58 +178,8 @@ class TransactionManager:
                 logger.warning(f"Attempt {attempt + 1} failed: {e}")
                 if attempt == 2:
                     raise
-                time.sleep(2)
+                time.sleep(5)  # Increased delay for rate limiting
         raise ValueError("Failed to send transaction after retries")
-
-    def get_transaction_history(self, address: str) -> list:
-        """
-        Retrieve transaction history for an address within the block limit.
-        """
-        if not self.wallet_manager._is_valid_address(address):
-            raise ValueError(f"Invalid address: {address}")
-
-        current_block = self.rpc_client.get_block_number()
-        start_block = max(0, current_block - self.history_block_limit)
-        transactions = []
-
-        for block_number in range(start_block, current_block + 1):
-            try:
-                block = self.rpc_client.get_block_info(block_number)
-                block_transactions = self._make_rpc_call('eth_getBlockByNumber', [hex(block_number), True])[
-                    'transactions']
-                for tx in block_transactions:
-                    if (tx['from'].lower() == address.lower() or
-                            (tx['to'] and tx['to'].lower() == address.lower())):
-                        transactions.append({
-                            'hash': tx['hash'],
-                            'from': tx['from'],
-                            'to': tx['to'] or '',
-                            'value': from_wei(int(tx['value'], 16), 'ether'),
-                            'gas': int(tx['gas'], 16),
-                            'gasPrice': int(tx['gasPrice'], 16),
-                            'blockNumber': int(tx['blockNumber'], 16)
-                        })
-            except Exception as e:
-                logger.warning(f"Failed to fetch block {block_number}: {e}")
-                continue
-
-        logger.info(f"Retrieved {len(transactions)} transactions for {address}")
-        return transactions
-
-    def export_transaction_history(self, address: str, output_file: str) -> None:
-        """
-        Export transaction history to a JSON file.
-        """
-        transactions = self.get_transaction_history(address)
-        output_path = Path(output_file)
-
-        try:
-            with output_path.open('w') as f:
-                json.dump(transactions, f, indent=2)
-            logger.info(f"Transaction history exported to {output_file}")
-        except Exception as e:
-            logger.error(f"Failed to export transactions: {e}")
-            raise ValueError(f"Failed to export transactions: {e}")
 
     def close(self):
         """
@@ -244,7 +187,6 @@ class TransactionManager:
         """
         self.rpc_client.close()
         logger.info("TransactionManager closed")
-
 
 if __name__ == '__main__':
     print("🚀 Testing TransactionManager Transaction Sending")
