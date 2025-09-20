@@ -60,19 +60,23 @@ It uses:
    ```json
    {
      "network": {
+       "name": "Sepolia Testnet",
+       "chain_id": 11155111,
        "rpc_url": "https://sepolia.infura.io/v3/YOUR_INFURA_PROJECT_ID",
-       "chain_id": 11155111
+       "currency_symbol": "ETH",
+       "block_explorer": "https://sepolia.etherscan.io"
+     },
+     "wallet": {
+       "storage_path": "./wallets/",
+       "default_wallet": ""
      },
      "transaction": {
        "default_gas_limit": 21000,
        "max_gas_price_gwei": 100,
        "default_gas_price_gwei": 1.0,
        "etherscan_api_key": "YOUR_ETHERSCAN_API_KEY"
-     },
-     "wallet": {
-       "storage_path": "./wallets/",
-       "default_wallet": ""
      }
+ 
    }
    ```
 
