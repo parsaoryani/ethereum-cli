@@ -3,3 +3,4 @@ wallets/
 exports/
 *.enc
 .DS_Store
+tests/test_*/
