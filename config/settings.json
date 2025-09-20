@@ -7,7 +7,7 @@
     "block_explorer": "https://sepolia.etherscan.io"
   },
   "wallet": {
-    "storage_path": "./wallets/",
+    "storage_path": "./wallet",
     "default_wallet": "0xb0b51e4bb8e9ecc0a89d4bee4cbe02201acb936b"
   },
   "transaction": {
