@@ -309,106 +309,153 @@ class TransactionManager:
         self.rpc_client.close()
         logger.info("TransactionManager closed")
 
-if __name__ == '__main__':
-    print("🚀 Testing TransactionManager Transaction Sending and History")
-    print("=" * 50)
+# CLI Interface for transaction commands
+def transaction_send(to_address: str, amount: float, password: str, from_address: str = None) -> None:
+    """
+    CLI command: Send ETH to an address.
+    Supports: ./cli send --to [address] --amount [eth_amount] [--from [address]] --password [password]
+    """
     try:
-        tx_manager = TransactionManager()
-        print("✅ TransactionManager initialized successfully")
-        network_info = tx_manager.rpc_client.get_network_info()
-        print(f"Network: {network_info['network']}, Chain ID: {network_info['chain_id']}")
-        test_address = "0xB0b51E4bb8E9EcC0a89D4BEe4Cbe02201acb936b"
-        history_address = "0x7e4dd6856aa001b78f1f2fE1A4A1f0e5b2cce5f7"
-        balance = tx_manager.rpc_client.get_balance(test_address, "ether")
-        print(f"Test address balance: {balance:.6f} SepoliaETH")
+        manager = TransactionManager()
+        # Use default wallet if from_address not specified
+        if not from_address:
+            from_address = manager.wallet_manager.get_default_wallet()
+            if not from_address:
+                print("No default wallet set. Use 'wallet use' to set a default wallet.")
+                exit(1)
 
-        to_address = history_address
-        value_ether = 0.01
-        password = "Parsa1382@"  # Replace with actual password
+        # Validate amount
+        if amount <= 0:
+            print("Error: Amount must be positive")
+            exit(1)
 
-        print(f"\n1️⃣ Attempting to send {value_ether} SepoliaETH from {test_address} to {to_address}")
-        try:
-            tx = tx_manager._build_transaction(test_address, to_address, value_ether)
-            # Convert bytes and numeric fields to hex for JSON serialization
-            log_tx = tx.copy()
-            log_tx['data'] = to_hex(log_tx['data'])
-            log_tx['value'] = to_hex(log_tx['value'])
-            log_tx['gas'] = to_hex(log_tx['gas'])
-            log_tx['gasPrice'] = to_hex(log_tx['gasPrice'])
-            log_tx['nonce'] = to_hex(log_tx['nonce'])
-            log_tx['chainId'] = to_hex(log_tx['chainId'])
-            print(f"✅ Transaction built:\n{json.dumps(log_tx, indent=2)}")
-
-            tx_hash = tx_manager.send_transaction(
-                from_address=test_address,
-                to_address=to_address,
-                value_ether=value_ether,
-                password=password
-            )
-            print(f"✅ Transaction sent successfully! Hash: {tx_hash}")
-            print(f"Check transaction on Sepolia Etherscan: https://sepolia.etherscan.io/tx/{tx_hash}")
-
-            print("\n2️⃣ Monitoring transaction status...")
-            max_attempts = 10
-            attempt = 1
-            while attempt <= max_attempts:
-                try:
-                    status = tx_manager.check_transaction_status(tx_hash)
-                    print(f"Attempt {attempt}:")
-                    print(f"  Status: {status['status']}")
-                    print(f"  Message: {status['message']}")
-                    if status['status'] == 'success':
-                        print(f"  Gas Used: {status.get('gas_used', 0):,}")
-                        print(f"  Block Number: {status.get('block_number', 'N/A')}")
-                        break
-                    elif status['status'] == 'failed':
-                        print("  Transaction failed!")
-                        break
-                except ValueError as e:
-                    print(f"  Error checking status: {e}")
-                print("  Waiting 5 seconds before next check...")
-                time.sleep(5)
-                attempt += 1
-
-            if attempt > max_attempts:
-                print("❌ Max attempts reached. Transaction may still be pending.")
-
-            print("\n3️⃣ Checking final balance")
-            new_balance = tx_manager.rpc_client.get_balance(test_address, "ether")
-            print(f"New balance for {test_address}: {new_balance:.6f} SepoliaETH")
-
-            print(f"\n4️⃣ Fetching transaction history for {history_address}")
-            try:
-                history = tx_manager.get_transaction_history(history_address)
-                print(f"Retrieved {len(history)} transactions for {history_address}:")
-                for tx in history:
-                    print(f"  Hash: {tx['hash']}")
-                    print(f"  From: {tx['from']}")
-                    print(f"  To: {tx['to']}")
-                    print(f"  Value: {tx['value']:.6f} ETH")
-                    print(f"  Gas Used: {tx['gas']:,}")
-                    print(f"  Gas Price: {tx['gasPrice']:,} wei")
-                    print(f"  Block Number: {tx['blockNumber']}")
-                    print("-" * 50)
-            except ValueError as e:
-                print(f"❌ Failed to fetch transaction history: {e}")
-
-            print(f"\n5️⃣ Exporting transaction history to 'exports/tx_history_{history_address.lower().replace('0x', '')}.json'")
-            try:
-                tx_manager.export_transaction_history(history_address)
-                filename = f"tx_history_{history_address.lower().replace('0x', '')}.json"
-                print(f"✅ Transaction history exported to {EXPORT_PATH / filename}")
-            except ValueError as e:
-                print(f"❌ Failed to export transaction history: {e}")
-
-        except (ValueError, Exception) as e:
-            print(f"❌ Transaction send failed: {e}")
-            logger.error(f"Error in send_transaction: {e}", exc_info=True)
-
-    except Exception as e:
-        print(f"❌ Setup failed: {e}")
-        logger.error(f"Exception in setup: {e}", exc_info=True)
+        tx_hash = manager.send_transaction(from_address, to_address, amount, password)
+        print(f"Transaction sent successfully! Hash: {tx_hash}")
+        print(f"Check transaction on Sepolia Etherscan: https://sepolia.etherscan.io/tx/{tx_hash}")
+    except ValueError as e:
+        print(f"Error: {e}")
+        exit(1)
     finally:
-        tx_manager.close()
-        print("\nAll Tests Completed!")
-        print("=" * 50)
+        manager.close()
+
+def transaction_status(tx_hash: str) -> None:
+    """
+    CLI command: Check transaction status.
+    Supports: ./cli tx status --hash [tx_hash]
+    """
+    try:
+        manager = TransactionManager()
+        status = manager.check_transaction_status(tx_hash)
+        print(f"Transaction Hash: {tx_hash}")
+        print(f"Status: {status['status']}")
+        print(f"Message: {status['message']}")
+        if status['status'] == 'success':
+            print(f"Gas Used: {status.get('gas_used', 0):,}")
+            print(f"Block Number: {status.get('block_number', 'N/A')}")
+    except ValueError as e:
+        print(f"Error: {e}")
+        exit(1)
+    finally:
+        manager.close()
+
+def transaction_history(address: str = None) -> None:
+    """
+    CLI command: Show transaction history for an address.
+    Supports: ./cli tx history [--address [address]]
+    """
+    try:
+        manager = TransactionManager()
+        # Use default wallet if address not specified
+        if not address:
+            address = manager.wallet_manager.get_default_wallet()
+            if not address:
+                print("No default wallet set. Use 'wallet use' to set a default wallet.")
+                exit(1)
+
+        history = manager.get_transaction_history(address)
+        print(f"Retrieved {len(history)} transactions for {address}:")
+        print("-" * 50)
+        for tx in history:
+            print(f"Hash: {tx['hash']}")
+            print(f"From: {tx['from']}")
+            print(f"To: {tx['to']}")
+            print(f"Value: {tx['value']:.6f} ETH")
+            print(f"Gas Used: {tx['gas']:,}")
+            print(f"Gas Price: {tx['gasPrice']:,} wei")
+            print(f"Block Number: {tx['blockNumber']}")
+            print("-" * 50)
+    except ValueError as e:
+        print(f"Error: {e}")
+        exit(1)
+    finally:
+        manager.close()
+
+def transaction_export(address: str = None, output: str = None) -> None:
+    """
+    CLI command: Export transaction history to JSON.
+    Supports: ./cli tx export [--address [address]] [--output [filename]]
+    """
+    try:
+        manager = TransactionManager()
+        # Use default wallet if address not specified
+        if not address:
+            address = manager.wallet_manager.get_default_wallet()
+            if not address:
+                print("No default wallet set. Use 'wallet use' to set a default wallet.")
+                exit(1)
+
+        manager.export_transaction_history(address, output)
+        filename = output or f"tx_history_{address.lower().replace('0x', '')}.json"
+        print(f"Transaction history exported to: {EXPORT_PATH / filename}")
+    except ValueError as e:
+        print(f"Error: {e}")
+        exit(1)
+    finally:
+        manager.close()
+
+
+if __name__ == '__main__':
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Ethereum CLI for Sepolia Testnet Transactions")
+    subparsers = parser.add_subparsers(dest="command", help="Transaction commands")
+
+    # Send transaction
+    send_parser = subparsers.add_parser("send", help="Send ETH to an address")
+    send_parser.add_argument("--to", required=True, help="Recipient address")
+    send_parser.add_argument("--amount", type=float, required=True, help="Amount in ETH")
+    send_parser.add_argument("--from", dest="from_address", help="Sender address (optional, uses default wallet if not specified)")
+    send_parser.add_argument("--password", required=True, help="Wallet password")
+    send_parser.set_defaults(func=transaction_send)
+
+    # Transaction status
+    status_parser = subparsers.add_parser("tx_status", help="Check transaction status")
+    status_parser.add_argument("--hash", required=True, help="Transaction hash")
+    status_parser.set_defaults(func=transaction_status)
+
+    # Transaction history
+    history_parser = subparsers.add_parser("tx_history", help="Fetch transaction history")
+    history_parser.add_argument("--address", help="Wallet address (optional, uses default wallet if not specified)")
+    history_parser.set_defaults(func=transaction_history)
+
+    # Export transaction history
+    export_parser = subparsers.add_parser("tx_export", help="Export transaction history to JSON")
+    export_parser.add_argument("--address", help="Wallet address (optional, uses default wallet if not specified)")
+    export_parser.add_argument("--output", help="Output filename (optional)")
+    export_parser.set_defaults(func=transaction_export)
+
+    args = parser.parse_args()
+
+    if not args.command:
+        parser.print_help()
+        exit(1)
+
+    # Call the appropriate function with filtered arguments
+    if args.command == "send":
+        args.func(args.to, args.amount, args.password, args.from_address)
+    elif args.command == "tx_status":
+        args.func(args.hash)
+    elif args.command == "tx_history":
+        args.func(args.address)
+    elif args.command == "tx_export":
+        args.func(args.address, args.output)
