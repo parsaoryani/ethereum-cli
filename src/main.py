@@ -111,7 +111,7 @@ def run():
 
     tx_export_parser = tx_status_subparsers.add_parser("export", help="Export transaction history to JSON")
     tx_export_parser.add_argument("--address", help="Wallet address (optional, uses default wallet if not specified)")
-    tx_export_parser.add_argument("--output", help="Output filename (optional, defaults to tx_history_<address>.json)")
+    tx_export_parser.add_argument("--output", help="Output filename (optional, default.txt to tx_history_<address>.json)")
     tx_export_parser.set_defaults(func=transaction_export)
 
     args = parser.parse_args()
