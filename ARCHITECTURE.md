@@ -94,6 +94,33 @@ ethereum-cli/
 
 ---
 
+## Test Coverage
+
+The project achieves an overall test coverage of **74%**, meeting the task requirement of at least 70% coverage. Below is the breakdown of coverage per file:
+
+| File                     | Statements | Missed | Coverage |
+|--------------------------|------------|--------|----------|
+| src/__init__.py          | 0          | 0      | 100%     |
+| src/rpc_client.py        | 274        | 111    | 59%      |
+| src/transaction.py       | 286        | 41     | 86%      |
+| src/wallet.py            | 380        | 235    | 38%      |
+| tests/test_rpc_client.py | 268        | 21     | 92%      |
+| tests/test_transaction.py| 328        | 3      | 99%      |
+| tests/test_wallet.py     | 287        | 61     | 79%      |
+| **Total**                | **1823**   | **472**| **74%**  |
+
+### Observations
+- **`transaction.py` and test files**: High coverage (86%–99%), indicating robust testing for transaction-related functionality.
+- **`rpc_client.py` (59%) and `wallet.py` (38%)**: Lower coverage suggests additional tests are needed.
+  - For `wallet.py`, more tests for wallet generation, import, and error cases (e.g., invalid passwords) are recommended.
+  - For `rpc_client.py`, tests for network error handling and edge cases (e.g., invalid JSON-RPC responses) should be added.
+
+### Future Improvements
+To enhance code quality, additional unit tests will be added to `test_wallet.py` and `test_rpc_client.py` to increase coverage for `wallet.py` and `rpc_client.py` to above 80%.
+
+---
+
+
 ## 🚀 Future Improvements
 
 * **Test Suite**: Implement comprehensive unit tests with at least 70% coverage.
