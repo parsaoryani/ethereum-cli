@@ -194,6 +194,7 @@ class TestWalletManager(unittest.TestCase):
 
     @patch('src.rpc_client.RPCClient')
     def test_generate_wallet_success(self, mock_rpc_client):
+        """Test generating a wallet with valid password."""
         # Mock balance to avoid real RPC calls
         mock_client_instance = mock_rpc_client.return_value
         mock_client_instance.get_balance.side_effect = [
@@ -229,6 +230,7 @@ class TestWalletManager(unittest.TestCase):
             self.fail(f"Failed to read wallet file {wallet_file}: {e}")
 
     def test_generate_wallet_short_password(self):
+        """Test generating wallet with short password."""
         # Test generating with short password
         with self.assertRaises(ValueError) as cm:
             self.manager.generate_wallet("short")
@@ -236,6 +238,7 @@ class TestWalletManager(unittest.TestCase):
 
     @patch('src.rpc_client.RPCClient')
     def test_import_wallet_success(self, mock_rpc_client):
+        """Test importing a wallet with valid private key and password."""
         # Mock balance
         mock_client_instance = mock_rpc_client.return_value
         mock_client_instance.get_balance.side_effect = [
@@ -265,12 +268,14 @@ class TestWalletManager(unittest.TestCase):
             self.fail(f"Failed to read wallet file {wallet_file}: {e}")
 
     def test_import_wallet_invalid_key(self):
+        """Test importing wallet with invalid private key."""
         # Test importing with invalid private key
         with self.assertRaises(ValueError) as cm:
             self.manager.import_wallet("invalid_key", "Parsa1382@")
         self.assertEqual(str(cm.exception), "Private key must be 64 hexadecimal characters")
 
     def test_import_wallet_short_password(self):
+        """Test importing wallet with short password."""
         # Test importing with short password
         private_key = "cc347ec1f2d4a9e13bcce7016dee94b4a0463a37871e4489c8ea60ab67a0b96d"
         with self.assertRaises(ValueError) as cm:
@@ -279,6 +284,7 @@ class TestWalletManager(unittest.TestCase):
 
     @patch('src.rpc_client.RPCClient')
     def test_get_wallet_info_success(self, mock_rpc_client):
+        """Test retrieving wallet info with and without password."""
         # Mock balance to handle multiple get_balance calls
         mock_client_instance = mock_rpc_client.return_value
         mock_client_instance.get_balance.side_effect = [
@@ -322,6 +328,7 @@ class TestWalletManager(unittest.TestCase):
 
     @patch('src.rpc_client.RPCClient')
     def test_get_wallet_info_wrong_password(self, mock_rpc_client):
+        """Test retrieving wallet info with incorrect password."""
         # Mock balance
         mock_client_instance = mock_rpc_client.return_value
         mock_client_instance.get_balance.side_effect = [
@@ -342,6 +349,7 @@ class TestWalletManager(unittest.TestCase):
                          f"Expected decryption_error 'Invalid password', got {info['decryption_error']}")
 
     def test_get_wallet_info_nonexistent(self):
+        """Test retrieving info for non-existent wallet."""
         # Test with nonexistent address
         nonexistent_address = "0x0000000000000000000000000000000000000000"
         with self.assertRaises(FileNotFoundError) as cm:
@@ -350,6 +358,7 @@ class TestWalletManager(unittest.TestCase):
 
     @patch('src.rpc_client.RPCClient')
     def test_list_wallets(self, mock_rpc_client):
+        """Test listing all wallets in storage."""
         # Mock balance
         mock_client_instance = mock_rpc_client.return_value
         mock_client_instance.get_balance.side_effect = [
@@ -381,6 +390,7 @@ class TestWalletManager(unittest.TestCase):
                       f"Wallet2 address {wallet2['address']} not in {wallet_addresses}")
 
     def test_list_wallets_empty(self):
+        """Test listing wallets when no wallets exist."""
         # Ensure no wallets exist in the test directory
         try:
             for wallet_file in self.test_wallet_dir.glob("*.json"):
@@ -394,6 +404,7 @@ class TestWalletManager(unittest.TestCase):
 
     @patch('src.rpc_client.RPCClient')
     def test_set_default_wallet_success(self, mock_rpc_client):
+        """Test setting a wallet as default successfully."""
         # Mock balance
         mock_client_instance = mock_rpc_client.return_value
         mock_client_instance.get_balance.side_effect = [
@@ -429,12 +440,14 @@ class TestWalletManager(unittest.TestCase):
             self.fail(f"Default wallet file {self.default_file} not found after retries")
 
     def test_set_default_wallet_invalid_address(self):
+        """Test setting default wallet with invalid address."""
         # Test with invalid address
         with self.assertRaises(ValueError) as cm:
             self.manager.set_default_wallet("0xInvalid")
         self.assertEqual(str(cm.exception), "Invalid address")
 
     def test_set_default_wallet_nonexistent(self):
+        """Test setting default wallet with non-existent address."""
         # Test with nonexistent address
         nonexistent_address = "0x0000000000000000000000000000000000000000"
         with self.assertRaises(FileNotFoundError) as cm:
@@ -443,6 +456,7 @@ class TestWalletManager(unittest.TestCase):
 
     @patch('src.rpc_client.RPCClient')
     def test_get_default_wallet(self, mock_rpc_client):
+        """Test retrieving the default wallet address."""
         # Mock balance
         mock_client_instance = mock_rpc_client.return_value
         mock_client_instance.get_balance.side_effect = [
@@ -464,6 +478,7 @@ class TestWalletManager(unittest.TestCase):
                          f"Expected default wallet to be {address}, but got {default}")
 
     def test_is_valid_address(self):
+        """Test validating wallet addresses."""
         # Test valid and invalid addresses
         self.assertTrue(self.manager._is_valid_address("0x7E4Dd6856Aa001b78f1f2fE1A4A1f0e5b2CcE5f7"),
                         "Valid address 0x7E4Dd685... failed validation")
