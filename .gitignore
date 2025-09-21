@@ -6,3 +6,4 @@ exports/
 tests/test_*/
 src/run_demo.py
 .coverage
+.env
