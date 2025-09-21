@@ -1,4 +1,6 @@
 import json
+import os
+from dotenv import load_dotenv
 import requests
 import logging
 import time
@@ -7,6 +9,7 @@ from typing import Dict, List, Optional, Union, Any
 import warnings
 warnings.filterwarnings("ignore", category=Warning)
 
+load_dotenv()
 # Configuration path
 CONFIG_PATH = Path(__file__).parent.parent / 'config' / 'settings.json'
 
@@ -45,7 +48,7 @@ class RPCClient:
         """
         with open(CONFIG_PATH, 'r') as f:
             config = json.load(f)
-        self.rpc_url = rpc_url or config['network']['rpc_url']
+        self.rpc_url = rpc_url or os.getenv('ETHEREUM_RPC_URL')
         self.expected_chain_id = chain_id or config['network']['chain_id']
         self.timeout = timeout
         self.max_retries = max_retries

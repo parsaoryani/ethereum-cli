@@ -1,3 +1,4 @@
+import os
 import unittest
 import json
 import sys
@@ -26,7 +27,8 @@ class TestTransactionManager(unittest.TestCase):
         self.settings_file = self.test_config_dir / 'test_settings.json'
         self.main_settings_file = self.test_base_dir.parent / 'config' / 'settings.json'
         self.test_export_dir = self.test_base_dir / 'test_exports'
-
+        os.environ["ETHERSCAN_API_KEY"] = "mock-api-key"
+        os.environ["RPC_URL"] = "mock-rpc-url"
         # Ensure test directories exist
         self.test_config_dir.mkdir(exist_ok=True)
         self.test_export_dir.mkdir(exist_ok=True)
@@ -52,7 +54,6 @@ class TestTransactionManager(unittest.TestCase):
                 "network": {
                     "name": "Sepolia Testnet",
                     "chain_id": 11155111,
-                    "rpc_url": "https://mock-rpc-url",
                     "currency_symbol": "ETH",
                     "block_explorer": "https://sepolia.etherscan.io"
                 },
@@ -63,8 +64,8 @@ class TestTransactionManager(unittest.TestCase):
                 "transaction": {
                     "default_gas_limit": 21000,
                     "max_gas_price_gwei": 100,
-                    "default_gas_price_gwei": 1.0,
-                    "etherscan_api_key": "mock-api-key"
+                    "default_gas_price_gwei": 1.0
+
                 }
             }, f, indent=4)
 
@@ -389,14 +390,22 @@ class TestTransactionManager(unittest.TestCase):
         self.assertIn("Invalid address", str(cm.exception))
 
     def test_get_transaction_history_no_api_key(self):
+
+        if "ETHERSCAN_API_KEY" in os.environ:
+            del os.environ["ETHERSCAN_API_KEY"]
+        if "RPC_URL" in os.environ:
+            del os.environ["RPC_URL"]
+
         with open(self.settings_file, 'w') as f:
             json.dump({
                 "network": {"name": "Sepolia Testnet", "chain_id": 11155111, "rpc_url": "https://mock-rpc-url"},
                 "wallet": {"storage_path": str(self.test_base_dir / 'test_wallet'), "default_wallet": ""},
                 "transaction": {"default_gas_limit": 21000, "max_gas_price_gwei": 100, "default_gas_price_gwei": 1.0}
             }, f, indent=4)
+
         with self.assertRaises(ValueError) as cm:
             TransactionManager().get_transaction_history("0x1234567890123456789012345678901234567890")
+
         self.assertIn("Etherscan API key not configured", str(cm.exception))
 
     def test_get_transaction_history_api_failure(self):
