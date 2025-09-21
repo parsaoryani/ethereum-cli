@@ -19,6 +19,7 @@ from src.transaction import TransactionManager, transaction_send, transaction_st
 
 class TestTransactionManager(unittest.TestCase):
     def setUp(self):
+        """Set up test environment, mock dependencies, and create test config files."""
         # Define test directories and files
         self.test_base_dir = Path(__file__).resolve().parent
         print(f"Current working directory: {Path.cwd()}")
@@ -39,7 +40,7 @@ class TestTransactionManager(unittest.TestCase):
             with open(self.settings_file, 'r') as f:
                 self.original_settings = json.load(f)
 
-        # Backup original main settings.json as both JSON and raw string to preserve formatting
+        # Backup original main settings.json as both JSON and raw string
         self.original_main_settings = {}
         self.original_main_settings_raw = None
         if self.main_settings_file.exists():
@@ -65,7 +66,6 @@ class TestTransactionManager(unittest.TestCase):
                     "default_gas_limit": 21000,
                     "max_gas_price_gwei": 100,
                     "default_gas_price_gwei": 1.0
-
                 }
             }, f, indent=4)
 
@@ -112,6 +112,7 @@ class TestTransactionManager(unittest.TestCase):
         self.manager = TransactionManager()
 
     def tearDown(self):
+        """Clean up test environment and restore original config files."""
         # Stop patchers
         self.patcher1.stop()
         self.patcher2.stop()
@@ -123,7 +124,7 @@ class TestTransactionManager(unittest.TestCase):
         with open(self.settings_file, 'w') as f:
             json.dump(self.original_settings, f, indent=4)
 
-        # Restore original main settings.json with original formatting
+        # Restore original main settings.json
         if self.original_main_settings_raw is not None:
             with open(self.main_settings_file, 'w') as f:
                 f.write(self.original_main_settings_raw)
@@ -138,6 +139,7 @@ class TestTransactionManager(unittest.TestCase):
                              f"Main settings.json was modified unexpectedly: {current_main_settings_raw}")
 
     def test_init_success(self):
+        """Test successful initialization of TransactionManager."""
         self.assertIsNotNone(self.manager.rpc_client)
         self.assertIsNotNone(self.manager.wallet_manager)
         self.assertEqual(self.manager.default_gas_limit, 21000)
@@ -146,12 +148,14 @@ class TestTransactionManager(unittest.TestCase):
         self.assertEqual(self.manager.etherscan_api_key, "mock-api-key")
 
     def test_init_missing_config_file(self):
+        """Test initialization failure due to missing config file."""
         with patch('src.transaction.CONFIG_PATH', self.test_base_dir / 'nonexistent.json'):
             with self.assertRaises(ValueError) as cm:
                 TransactionManager()
             self.assertIn("Configuration file not found", str(cm.exception))
 
     def test_init_invalid_json(self):
+        """Test initialization failure due to invalid JSON in config file."""
         with open(self.settings_file, 'w') as f:
             f.write("invalid json")
         with self.assertRaises(ValueError) as cm:
@@ -159,6 +163,7 @@ class TestTransactionManager(unittest.TestCase):
         self.assertIn("Invalid JSON format", str(cm.exception))
 
     def test_init_missing_config_keys(self):
+        """Test initialization failure due to missing config keys."""
         with open(self.settings_file, 'w') as f:
             json.dump({"wrong_key": {}}, f)
         with self.assertRaises(ValueError) as cm:
@@ -166,6 +171,7 @@ class TestTransactionManager(unittest.TestCase):
         self.assertIn("Missing required configuration key", str(cm.exception))
 
     def test_build_transaction_success(self):
+        """Test successful transaction building with valid inputs."""
         tx = self.manager._build_transaction(
             from_address="0x1234567890123456789012345678901234567890",
             to_address="0x0987654321098765432109876543210987654321",
@@ -173,14 +179,14 @@ class TestTransactionManager(unittest.TestCase):
         )
         self.assertEqual(tx['nonce'], 5)
         self.assertEqual(tx['to'], "0x0987654321098765432109876543210987654321")
-        self.assertEqual(tx['value'], 1000000000000000000)  # 1 ETH in wei
+        self.assertEqual(tx['value'], 1000000000000000000)
         self.assertEqual(tx['gas'], 21000)
-        self.assertEqual(tx['gasPrice'], 1000000000)  # 1 Gwei
+        self.assertEqual(tx['gasPrice'], 1000000000)
         self.assertEqual(tx['chainId'], 11155111)
         self.assertEqual(tx['data'], b'')
 
     def test_build_transaction_invalid_addresses(self):
-        # Test invalid recipient address
+        """Test transaction building failure with invalid addresses."""
         with self.assertRaises(ValueError) as cm:
             self.mock_wallet_instance._is_valid_address.side_effect = [False, True]
             self.manager._build_transaction(
@@ -190,7 +196,6 @@ class TestTransactionManager(unittest.TestCase):
             )
         self.assertIn("Invalid recipient address", str(cm.exception))
 
-        # Test invalid sender address
         with self.assertRaises(ValueError) as cm:
             self.mock_wallet_instance._is_valid_address.side_effect = [True, False]
             self.manager._build_transaction(
@@ -199,7 +204,9 @@ class TestTransactionManager(unittest.TestCase):
                 value_ether=1.0
             )
         self.assertIn("Invalid sender address", str(cm.exception))
+
     def test_build_transaction_negative_amount(self):
+        """Test transaction building failure with negative amount."""
         with self.assertRaises(ValueError) as cm:
             self.manager._build_transaction(
                 from_address="0x1234567890123456789012345678901234567890",
@@ -209,7 +216,8 @@ class TestTransactionManager(unittest.TestCase):
         self.assertIn("Amount must be positive", str(cm.exception))
 
     def test_build_transaction_insufficient_balance(self):
-        self.mock_rpc_instance.get_balance.return_value = 500000000000000000  # 0.5 ETH in wei
+        """Test transaction building failure due to insufficient balance."""
+        self.mock_rpc_instance.get_balance.return_value = 500000000000000000
         with self.assertRaises(ValueError) as cm:
             self.manager._build_transaction(
                 from_address="0x1234567890123456789012345678901234567890",
@@ -218,8 +226,8 @@ class TestTransactionManager(unittest.TestCase):
             )
         self.assertIn("Insufficient balance", str(cm.exception))
 
-
     def test_build_transaction_nonce_failure(self):
+        """Test transaction building failure due to nonce fetch error."""
         self.mock_rpc_instance.get_nonce.side_effect = ValueError("Nonce error")
         with self.assertRaises(ValueError) as cm:
             self.manager._build_transaction(
@@ -230,21 +238,23 @@ class TestTransactionManager(unittest.TestCase):
         self.assertIn("Failed to fetch nonce after retries", str(cm.exception))
 
     def test_build_transaction_gas_estimation_failure(self):
+        """Test transaction building with fallback gas limit on estimation failure."""
         self.mock_rpc_instance.estimate_gas.side_effect = ValueError("Gas estimation error")
         tx = self.manager._build_transaction(
             from_address="0x1234567890123456789012345678901234567890",
             to_address="0x0987654321098765432109876543210987654321",
             value_ether=1.0
         )
-        self.assertEqual(tx['gas'], 21000)  # Fallback to default gas limit
+        self.assertEqual(tx['gas'], 21000)
 
     def test_sign_transaction_success(self):
+        """Test successful transaction signing with valid inputs."""
         transaction = {
             'nonce': 5,
             'to': "0x0987654321098765432109876543210987654321",
-            'value': 1000000000000000000,  # 1 ETH in wei
+            'value': 1000000000000000000,
             'gas': 21000,
-            'gasPrice': 1000000000,  # 1 Gwei
+            'gasPrice': 1000000000,
             'chainId': 11155111,
             'data': b''
         }
@@ -258,6 +268,7 @@ class TestTransactionManager(unittest.TestCase):
             self.assertTrue(len(signed_tx) > 0)
 
     def test_sign_transaction_invalid_private_key(self):
+        """Test transaction signing failure with invalid private key."""
         transaction = {
             'nonce': 5,
             'to': "0x0987654321098765432109876543210987654321",
@@ -272,12 +283,12 @@ class TestTransactionManager(unittest.TestCase):
         self.assertIn("Invalid private key format", str(cm.exception))
 
     def test_sign_transaction_missing_field(self):
+        """Test transaction signing failure due to missing transaction field."""
         transaction = {
             'nonce': 5,
             'to': "0x0987654321098765432109876543210987654321",
             'value': 1000000000000000000,
             'gas': 21000,
-            # Missing gasPrice
             'chainId': 11155111,
             'data': b''
         }
@@ -286,6 +297,7 @@ class TestTransactionManager(unittest.TestCase):
         self.assertIn("Missing transaction field", str(cm.exception))
 
     def test_sign_transaction_signature_verification_failure(self):
+        """Test transaction signing failure due to signature verification error."""
         transaction = {
             'nonce': 5,
             'to': "0x0987654321098765432109876543210987654321",
@@ -298,12 +310,13 @@ class TestTransactionManager(unittest.TestCase):
         with patch('src.transaction.Account') as mock_account:
             mock_account.from_key.return_value.address = "0x1234567890123456789012345678901234567890"
             mock_account.sign_transaction.return_value = MagicMock(v=27, r=123, s=456)
-            mock_account.recover_transaction.return_value = "0x0987654321098765432109876543210987654321"  # Wrong address
+            mock_account.recover_transaction.return_value = "0x0987654321098765432109876543210987654321"
             with self.assertRaises(ValueError) as cm:
                 self.manager._sign_transaction(transaction, "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
             self.assertIn("Signature verification failed", str(cm.exception))
 
     def test_send_transaction_success(self):
+        """Test successful transaction sending with valid inputs."""
         tx_hash = self.manager.send_transaction(
             from_address="0x1234567890123456789012345678901234567890",
             to_address="0x0987654321098765432109876543210987654321",
@@ -313,6 +326,7 @@ class TestTransactionManager(unittest.TestCase):
         self.assertEqual(tx_hash, "0x" + "1" * 64)
 
     def test_send_transaction_invalid_wallet(self):
+        """Test transaction sending failure due to invalid wallet password."""
         self.mock_wallet_instance.get_wallet_info.return_value = {
             'private_key_available': False,
             'decryption_error': "Invalid password"
@@ -327,6 +341,7 @@ class TestTransactionManager(unittest.TestCase):
         self.assertIn("Invalid password", str(cm.exception))
 
     def test_send_transaction_network_failure(self):
+        """Test transaction sending failure due to network error."""
         self.mock_rpc_instance.send_raw_transaction.side_effect = ValueError("Network error")
         with self.assertRaises(ValueError) as cm:
             self.manager.send_transaction(
@@ -338,6 +353,7 @@ class TestTransactionManager(unittest.TestCase):
         self.assertIn("Network error", str(cm.exception))
 
     def test_check_transaction_status_success(self):
+        """Test successful retrieval of transaction status."""
         status = self.manager.check_transaction_status("0x" + "1" * 64)
         self.assertEqual(status, {
             'status': 'success',
@@ -347,12 +363,14 @@ class TestTransactionManager(unittest.TestCase):
         })
 
     def test_check_transaction_status_failure(self):
+        """Test transaction status retrieval failure due to invalid hash."""
         self.mock_rpc_instance.get_transaction_status.side_effect = ValueError("Invalid hash")
         with self.assertRaises(ValueError) as cm:
             self.manager.check_transaction_status("0x" + "1" * 64)
         self.assertIn("Failed to check transaction status", str(cm.exception))
 
     def test_get_transaction_history_success(self):
+        """Test successful retrieval of transaction history."""
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -363,9 +381,9 @@ class TestTransactionManager(unittest.TestCase):
                     "hash": "0x" + "1" * 64,
                     "from": "0x1234567890123456789012345678901234567890",
                     "to": "0x0987654321098765432109876543210987654321",
-                    "value": "1000000000000000000",  # 1 ETH
+                    "value": "1000000000000000000",
                     "gasUsed": "21000",
-                    "gasPrice": "1000000000",  # 1 Gwei
+                    "gasPrice": "1000000000",
                     "blockNumber": "291"
                 }
             ]
@@ -384,13 +402,14 @@ class TestTransactionManager(unittest.TestCase):
         })
 
     def test_get_transaction_history_invalid_address(self):
+        """Test transaction history retrieval failure with invalid address."""
         self.mock_wallet_instance._is_valid_address.return_value = False
         with self.assertRaises(ValueError) as cm:
             self.manager.get_transaction_history("invalid_address")
         self.assertIn("Invalid address", str(cm.exception))
 
     def test_get_transaction_history_no_api_key(self):
-
+        """Test transaction history retrieval failure due to missing API key."""
         if "ETHERSCAN_API_KEY" in os.environ:
             del os.environ["ETHERSCAN_API_KEY"]
         if "RPC_URL" in os.environ:
@@ -405,10 +424,10 @@ class TestTransactionManager(unittest.TestCase):
 
         with self.assertRaises(ValueError) as cm:
             TransactionManager().get_transaction_history("0x1234567890123456789012345678901234567890")
-
         self.assertIn("Etherscan API key not configured", str(cm.exception))
 
     def test_get_transaction_history_api_failure(self):
+        """Test transaction history retrieval failure due to Etherscan API error."""
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"status": "0", "message": "API error", "result": "Error"}
@@ -418,12 +437,14 @@ class TestTransactionManager(unittest.TestCase):
         self.assertIn("Etherscan API error", str(cm.exception))
 
     def test_get_transaction_history_network_failure(self):
+        """Test transaction history retrieval failure due to network error."""
         self.mock_requests_get.side_effect = requests.RequestException("Network error")
         with self.assertRaises(ValueError) as cm:
             self.manager.get_transaction_history("0x1234567890123456789012345678901234567890")
         self.assertIn("Failed to fetch transaction history after retries", str(cm.exception))
 
     def test_export_transaction_history_success(self):
+        """Test successful export of transaction history to JSON file."""
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -452,16 +473,19 @@ class TestTransactionManager(unittest.TestCase):
         self.assertEqual(exported_data[0]['hash'], "0x" + "1" * 64)
 
     def test_export_transaction_history_failure(self):
+        """Test transaction history export failure due to API error."""
         self.mock_requests_get.side_effect = ValueError("API error")
         with self.assertRaises(ValueError) as cm:
             self.manager.export_transaction_history("0x1234567890123456789012345678901234567890")
         self.assertIn("API error", str(cm.exception))
 
     def test_close(self):
+        """Test proper cleanup of TransactionManager resources."""
         self.manager.close()
         self.mock_rpc_instance.close.assert_called_once()
 
     def test_transaction_send_success(self):
+        """Test successful CLI transaction send command."""
         with patch('sys.stdout', new=StringIO()) as fake_out:
             transaction_send(
                 to_address="0x0987654321098765432109876543210987654321",
@@ -475,6 +499,7 @@ class TestTransactionManager(unittest.TestCase):
             self.assertIn("https://sepolia.etherscan.io/tx/0x" + "1" * 64, output)
 
     def test_transaction_send_no_default_wallet(self):
+        """Test CLI transaction send failure due to no default wallet."""
         self.mock_wallet_instance.get_default_wallet.return_value = None
         with patch('sys.stdout', new=StringIO()) as fake_out:
             with self.assertRaises(SystemExit):
@@ -486,6 +511,7 @@ class TestTransactionManager(unittest.TestCase):
             self.assertIn("No default wallet set", fake_out.getvalue())
 
     def test_transaction_send_negative_amount(self):
+        """Test CLI transaction send failure due to negative amount."""
         with patch('sys.stdout', new=StringIO()) as fake_out:
             with self.assertRaises(SystemExit):
                 transaction_send(
@@ -497,6 +523,7 @@ class TestTransactionManager(unittest.TestCase):
             self.assertIn("Amount must be positive", fake_out.getvalue())
 
     def test_transaction_send_failure(self):
+        """Test CLI transaction send failure due to network error."""
         self.mock_rpc_instance.send_raw_transaction.side_effect = ValueError("Network error")
         with patch('sys.stdout', new=StringIO()) as fake_out:
             with self.assertRaises(SystemExit):
@@ -509,6 +536,7 @@ class TestTransactionManager(unittest.TestCase):
             self.assertIn("Error: Network error", fake_out.getvalue())
 
     def test_transaction_status_success(self):
+        """Test successful CLI transaction status command."""
         with patch('sys.stdout', new=StringIO()) as fake_out:
             transaction_status("0x" + "1" * 64)
             output = fake_out.getvalue()
@@ -519,6 +547,7 @@ class TestTransactionManager(unittest.TestCase):
             self.assertIn("Block Number: 291", output)
 
     def test_transaction_status_failure(self):
+        """Test CLI transaction status failure due to invalid hash."""
         self.mock_rpc_instance.get_transaction_status.side_effect = ValueError("Invalid hash")
         with patch('sys.stdout', new=StringIO()) as fake_out:
             with self.assertRaises(SystemExit):
@@ -526,6 +555,7 @@ class TestTransactionManager(unittest.TestCase):
             self.assertIn("Error: Failed to check transaction status", fake_out.getvalue())
 
     def test_transaction_history_success(self):
+        """Test successful CLI transaction history command."""
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -554,6 +584,7 @@ class TestTransactionManager(unittest.TestCase):
             self.assertIn("Block Number: 291", output)
 
     def test_transaction_history_no_default_wallet(self):
+        """Test CLI transaction history failure due to no default wallet."""
         self.mock_wallet_instance.get_default_wallet.return_value = None
         with patch('sys.stdout', new=StringIO()) as fake_out:
             with self.assertRaises(SystemExit):
@@ -561,6 +592,7 @@ class TestTransactionManager(unittest.TestCase):
             self.assertIn("No default wallet set", fake_out.getvalue())
 
     def test_transaction_export_success(self):
+        """Test successful CLI transaction history export command."""
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -588,6 +620,7 @@ class TestTransactionManager(unittest.TestCase):
         self.assertTrue(output_path.exists())
 
     def test_transaction_export_no_default_wallet(self):
+        """Test CLI transaction history export failure due to no default wallet."""
         self.mock_wallet_instance.get_default_wallet.return_value = None
         with patch('sys.stdout', new=StringIO()) as fake_out:
             with self.assertRaises(SystemExit):
