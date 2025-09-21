@@ -1,13 +1,15 @@
 import json
 import logging
+import os
 import time
 from pathlib import Path
 from typing import Dict, Any
 import rlp
 import requests
+from dotenv import load_dotenv
 from eth_account import Account
 from eth_utils import to_bytes, to_hex, to_checksum_address
-
+load_dotenv()
 from src.rpc_client import RPCClient
 from src.wallet import WalletManager
 
@@ -45,7 +47,7 @@ class TransactionManager:
                 raise ValueError(f"Missing required configuration key: {key}")
 
         self.rpc_client = RPCClient(
-            rpc_url=self.config['network'].get('rpc_url', ''),
+            rpc_url=os.getenv('RPC_URL'),
             chain_id=self.config['network'].get('chain_id', 0),
             timeout=10,
             max_retries=3
@@ -55,7 +57,7 @@ class TransactionManager:
         self.default_gas_limit = self.config['transaction'].get('default_gas_limit', 21000)
         self.max_gas_price_gwei = self.config['transaction'].get('max_gas_price_gwei', 100)
         self.default_gas_price_gwei = self.config['transaction'].get('default_gas_price_gwei', 1.0)
-        self.etherscan_api_key = self.config['transaction'].get('etherscan_api_key', '')
+        self.etherscan_api_key = os.getenv('ETHERSCAN_API_KEY', "")
 
         if not self.etherscan_api_key:
             logger.warning("Etherscan API key not configured in settings.json")
@@ -244,10 +246,12 @@ class TransactionManager:
         Retrieve transaction history for an address using Etherscan API.
         Supports CLI command: ./cli tx history [--address [address]]
         """
-        if not self.wallet_manager._is_valid_address(address):
-            raise ValueError(f"Invalid address: {address}")
         if not self.etherscan_api_key:
             raise ValueError("Etherscan API key not configured in settings.json")
+
+        if not self.wallet_manager._is_valid_address(address):
+            raise ValueError(f"Invalid address: {address}")
+
 
         address = to_checksum_address(address)
         url = (
