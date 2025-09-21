@@ -13,7 +13,7 @@ The Ethereum CLI supports:
 - Balance queries
 - Transaction operations  
 
-Commands are executed using the `./cli` script, and most commands rely on a configured `config/settings.json` file with a valid Sepolia RPC URL and Etherscan API key.  
+Commands are executed using the `./cli` script, and most commands rely on a configured `.env` file with a valid Sepolia RPC URL (`RPC_URL`) and Etherscan API key (`ETHERSCAN_API_KEY`).
 
 Run:
 ```bash
