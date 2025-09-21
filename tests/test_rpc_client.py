@@ -126,6 +126,7 @@ class TestRPCClient(unittest.TestCase):
             self.fail(f"Failed to verify main settings.json: {e}")
 
     def test_init_success(self):
+        """Test successful initialization of RPCClient."""
         # Mock response for eth_chainId
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -141,8 +142,8 @@ class TestRPCClient(unittest.TestCase):
         self.assertEqual(client.call_count, 1)
         self.assertEqual(client.success_count, 1)
 
-
     def test_get_chain_id_success(self):
+        """Test retrieving chain ID successfully."""
         # Mock eth_chainId response
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -153,6 +154,7 @@ class TestRPCClient(unittest.TestCase):
         self.assertEqual(chain_id, 11155111)
 
     def test_get_chain_id_wrong_network(self):
+        """Test chain ID retrieval with incorrect network."""
         # Mock eth_chainId with wrong chain ID
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -164,6 +166,7 @@ class TestRPCClient(unittest.TestCase):
         self.assertIn("Wrong network! Expected 11155111", str(cm.exception))
 
     def test_get_network_info_success(self):
+        """Test retrieving network information successfully."""
         # Mock responses
         mock_response_chain = MagicMock()
         mock_response_chain.status_code = 200
@@ -185,6 +188,7 @@ class TestRPCClient(unittest.TestCase):
         })
 
     def test_get_network_info_failure(self):
+        """Test network info retrieval with network error."""
         # Mock failure with RequestException
         mock_response = MagicMock()
         mock_response.side_effect = requests.exceptions.RequestException("Network error")
@@ -195,8 +199,8 @@ class TestRPCClient(unittest.TestCase):
         self.assertIn('Network error', info['error'])
         self.assertEqual(info['network'], 'Unknown')
 
-
     def test_get_balance_success(self):
+        """Test retrieving balance in different units."""
         # Mock eth_getBalance response
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -213,16 +217,19 @@ class TestRPCClient(unittest.TestCase):
         self.assertEqual(balance_gwei, 2000000000.0)
 
     def test_get_balance_invalid_address(self):
+        """Test balance retrieval with invalid address."""
         with self.assertRaises(ValueError) as cm:
             self.client.get_balance("invalid_address")
         self.assertEqual(str(cm.exception), "Invalid address: invalid_address")
 
     def test_get_balance_invalid_unit(self):
+        """Test balance retrieval with invalid unit."""
         with self.assertRaises(ValueError) as cm:
             self.client.get_balance("0x1234567890123456789012345678901234567890", unit='invalid')
         self.assertEqual(str(cm.exception), "Unit must be 'wei', 'gwei', or 'ether'")
 
     def test_get_nonce_success(self):
+        """Test retrieving transaction nonce successfully."""
         # Mock eth_getTransactionCount response
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -233,11 +240,13 @@ class TestRPCClient(unittest.TestCase):
         self.assertEqual(nonce, 5)
 
     def test_get_nonce_invalid_address(self):
+        """Test nonce retrieval with invalid address."""
         with self.assertRaises(ValueError) as cm:
             self.client.get_nonce("invalid_address")
         self.assertEqual(str(cm.exception), "Invalid address: invalid_address")
 
     def test_get_gas_price_success(self):
+        """Test retrieving gas price in different units."""
         # Mock eth_gasPrice response
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -254,6 +263,7 @@ class TestRPCClient(unittest.TestCase):
         self.assertEqual(gas_price_ether, 0.000000001)
 
     def test_get_gas_price_zero_fallback(self):
+        """Test gas price retrieval with zero value fallback."""
         # Mock eth_gasPrice returning 0
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -264,6 +274,7 @@ class TestRPCClient(unittest.TestCase):
         self.assertEqual(gas_price, 1.0)  # Should use default from test_settings.json
 
     def test_estimate_gas_success(self):
+        """Test estimating gas for a transaction."""
         # Mock eth_estimateGas response
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -274,8 +285,8 @@ class TestRPCClient(unittest.TestCase):
         gas = self.client.estimate_gas(tx)
         self.assertEqual(gas, 21000)
 
-
     def test_estimate_gas_invalid_transaction(self):
+        """Test gas estimation with invalid transaction."""
         with self.assertRaises(ValueError) as cm:
             self.client.estimate_gas("invalid")
         self.assertEqual(str(cm.exception), "Transaction must be a dictionary")
@@ -285,6 +296,7 @@ class TestRPCClient(unittest.TestCase):
         self.assertEqual(str(cm.exception), "Transaction missing 'to' address")
 
     def test_send_raw_transaction_success(self):
+        """Test sending a raw transaction successfully."""
         # Mock eth_sendRawTransaction response
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -295,11 +307,13 @@ class TestRPCClient(unittest.TestCase):
         self.assertEqual(tx_hash, "0x" + "1" * 64)
 
     def test_send_raw_transaction_invalid(self):
+        """Test sending an invalid raw transaction."""
         with self.assertRaises(ValueError) as cm:
             self.client.send_raw_transaction("invalid")
         self.assertEqual(str(cm.exception), "Transaction must start with 0x")
 
     def test_get_transaction_status_success(self):
+        """Test retrieving successful transaction status."""
         # Mock eth_getTransactionByHash and eth_getTransactionReceipt
         mock_response_tx = MagicMock()
         mock_response_tx.status_code = 200
@@ -324,6 +338,7 @@ class TestRPCClient(unittest.TestCase):
         })
 
     def test_get_transaction_status_pending(self):
+        """Test retrieving status of a pending transaction."""
         # Mock eth_getTransactionByHash (exists) and eth_getTransactionReceipt (None)
         mock_response_tx = MagicMock()
         mock_response_tx.status_code = 200
@@ -342,6 +357,7 @@ class TestRPCClient(unittest.TestCase):
         })
 
     def test_get_transaction_status_not_found(self):
+        """Test retrieving status of a non-existent transaction."""
         # Mock eth_getTransactionByHash (None)
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -357,11 +373,13 @@ class TestRPCClient(unittest.TestCase):
         })
 
     def test_get_transaction_status_invalid_hash(self):
+        """Test transaction status with invalid hash."""
         with self.assertRaises(ValueError) as cm:
             self.client.get_transaction_status("invalid")
         self.assertEqual(str(cm.exception), "Invalid transaction hash")
 
     def test_get_block_number_success(self):
+        """Test retrieving the latest block number."""
         # Mock eth_blockNumber response
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -372,6 +390,7 @@ class TestRPCClient(unittest.TestCase):
         self.assertEqual(block_number, 0x123)
 
     def test_get_block_info_success(self):
+        """Test retrieving block information successfully."""
         # Mock eth_getBlockByNumber response
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -397,6 +416,7 @@ class TestRPCClient(unittest.TestCase):
         })
 
     def test_get_block_info_invalid_block(self):
+        """Test block info retrieval for non-existent block."""
         # Mock eth_getBlockByNumber not found
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -408,11 +428,13 @@ class TestRPCClient(unittest.TestCase):
         self.assertEqual(str(cm.exception), "Block 100 not found")
 
     def test_get_block_info_negative_block(self):
+        """Test block info retrieval with negative block number."""
         with self.assertRaises(ValueError) as cm:
             self.client.get_block_info(-1)
         self.assertEqual(str(cm.exception), "Block number cannot be negative")
 
     def test_get_stats(self):
+        """Test retrieving RPC client statistics."""
         # Mock two successful calls
         mock_response = MagicMock()
         mock_response.status_code = 200
