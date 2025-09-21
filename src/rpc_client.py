@@ -48,7 +48,7 @@ class RPCClient:
         """
         with open(CONFIG_PATH, 'r') as f:
             config = json.load(f)
-        self.rpc_url = rpc_url or os.getenv('ETHEREUM_RPC_URL')
+        self.rpc_url = rpc_url or os.getenv('RPC_URL')
         self.expected_chain_id = chain_id or config['network']['chain_id']
         self.timeout = timeout
         self.max_retries = max_retries
