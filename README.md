@@ -62,7 +62,6 @@ It uses:
      "network": {
        "name": "Sepolia Testnet",
        "chain_id": 11155111,
-       "rpc_url": "https://sepolia.infura.io/v3/YOUR_INFURA_PROJECT_ID",
        "currency_symbol": "ETH",
        "block_explorer": "https://sepolia.etherscan.io"
      },
@@ -73,15 +72,11 @@ It uses:
      "transaction": {
        "default_gas_limit": 21000,
        "max_gas_price_gwei": 100,
-       "default_gas_price_gwei": 1.0,
-       "etherscan_api_key": "YOUR_ETHERSCAN_API_KEY"
+       "default_gas_price_gwei": 1.0
      }
  
    }
    ```
-
-   * Replace `YOUR_INFURA_PROJECT_ID` with your Infura/Alchemy/GetBlock project ID.
-   * Replace `YOUR_ETHERSCAN_API_KEY` with a valid Etherscan API key (from [etherscan.io](https://etherscan.io)).
 
 5. **Make the CLI executable**
 
@@ -199,9 +194,16 @@ ethereum-cli/
 └── cli                   # Executable CLI entry point
 ```
 
+>⚠️ To interact with the Ethereum network, configure the environment variables in a `.env` file in the project root:
+
+
+
+RPC_URL: URL of the Ethereum RPC endpoint (e.g., GetBlock, Infura, or Alchemy) for blockchain interactions.
+
+ETHERSCAN_API_KEY: API key for Etherscan to fetch transaction history.
+
+Ensure the .env file is created in the project root and is loaded using python-dotenv.
 ---
-Got it 👍 You don’t need to copy all those details into your README.
-Here’s a **short and clear section** you can add so contributors know how to run tests:
 
 ## 🧪 Running Tests
 
@@ -244,11 +246,4 @@ python -m unittest tests.test_wallet.TestWalletManager.test_set_default_wallet_s
 
 * This CLI is for the **Sepolia testnet only** (not mainnet).
 * Ensure a **stable RPC endpoint** to avoid connection errors.
-* Use **strong passwords** for wallet encryption.
 * For issues with Infura, try providers like **Alchemy** or **GetBlock**.
-
----
-
-## 📬 Contact
-
-For issues, feature requests, or contributions, please open an issue on the GitHub repository.

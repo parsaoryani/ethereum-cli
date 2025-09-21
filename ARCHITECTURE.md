@@ -73,7 +73,7 @@ ethereum-cli/
 │   ├── rpc_client.py     # Ethereum network interactions using JSON-RPC
 │   └── main.py           # CLI command parsing and delegation
 ├── config/
-│   └── settings.json     # Network settings (RPC URL, chain ID, Etherscan API key) and default wallet
+│   └── settings.json     # Network settings and default wallet
 ├── wallets/              # Encrypted wallet JSON files
 ├── exports/              # Exported transaction history JSON files
 ├── tests/                # Unit tests (to be implemented)
@@ -123,7 +123,5 @@ To enhance code quality, additional unit tests will be added to `test_wallet.py`
 
 ## 🚀 Future Improvements
 
-* **Test Suite**: Implement comprehensive unit tests with at least 70% coverage.
-* **Mainnet Support**: Extend the CLI to support other Ethereum networks via `settings.json`.
 * **Additional Features**: Add support for ERC-20 token transfers or smart contract interactions.
 * **Docker Optimization**: Improve Dockerfile for production-grade deployments.
