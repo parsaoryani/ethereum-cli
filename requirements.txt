@@ -4,8 +4,10 @@ certifi==2025.8.3
 cffi==2.0.0
 charset-normalizer==3.4.3
 ckzg==2.1.4
+coverage==7.10.6
 cryptography==46.0.1
 cytoolz==1.0.1
+dotenv==0.9.9
 ecdsa==0.19.1
 eth-account==0.13.7
 eth-hash==0.7.1
@@ -24,6 +26,7 @@ pydantic==2.11.9
 pydantic_core==2.33.2
 pykeccak==0.2.1
 pysha3==1.0.2
+python-dotenv==1.1.1
 regex==2025.9.18
 requests==2.32.5
 rlp==4.1.0
